@@ -1,0 +1,42 @@
+{
+  "name": "@safetnsr/vet",
+  "version": "0.1.0",
+  "description": "vet your AI-generated code — one command, six checks, zero config",
+  "type": "module",
+  "bin": {
+    "vet": "dist/cli.js"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts"
+  },
+  "keywords": [
+    "ai",
+    "code-quality",
+    "vibe-coding",
+    "claude-code",
+    "cursor",
+    "copilot",
+    "lint",
+    "agent",
+    "git"
+  ],
+  "author": "safetnsr",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/safetnsr/vet"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
