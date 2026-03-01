@@ -115,14 +115,15 @@ if (isFix) {
   process.exit(0);
 }
 
-function runChecks(): ReturnType<typeof score> {
+async function runChecks(): Promise<ReturnType<typeof score>> {
   const allChecks = ['ready', 'diff', 'models', 'links', 'config', 'history'];
   const enabledChecks = config.checks || allChecks;
   const results: CheckResult[] = [];
 
-  if (enabledChecks.includes('ready')) results.push(checkReady(cwd, ignore));
+  // ready and models are async (try rich subpackages first, fallback to built-in)
+  if (enabledChecks.includes('ready')) results.push(await checkReady(cwd, ignore));
   if (enabledChecks.includes('diff')) results.push(checkDiff(cwd, { since }));
-  if (enabledChecks.includes('models')) results.push(checkModels(cwd, ignore));
+  if (enabledChecks.includes('models')) results.push(await checkModels(cwd, ignore));
   if (enabledChecks.includes('links')) results.push(checkLinks(cwd, ignore));
   if (enabledChecks.includes('config')) results.push(checkConfig(cwd, ignore));
   if (enabledChecks.includes('history')) results.push(checkHistory(cwd));
@@ -133,7 +134,7 @@ function runChecks(): ReturnType<typeof score> {
 // --watch mode
 if (isWatch) {
   console.clear();
-  let result = runChecks();
+  let result = await runChecks();
   console.log(reportPretty(result));
   console.log(`  ${c.dim}watching for changes... (ctrl+c to stop)${c.reset}\n`);
 
@@ -146,9 +147,9 @@ if (isWatch) {
       if (filename.includes('node_modules') || filename.includes('.git')) return;
 
       if (debounce) clearTimeout(debounce);
-      debounce = setTimeout(() => {
+      debounce = setTimeout(async () => {
         console.clear();
-        result = runChecks();
+        result = await runChecks();
         console.log(reportPretty(result));
         console.log(`  ${c.dim}watching for changes... (ctrl+c to stop)${c.reset}\n`);
       }, 500);
@@ -164,7 +165,7 @@ if (isWatch) {
   }
 } else {
   // Normal run
-  const result = runChecks();
+  const result = await runChecks();
 
   if (isJSON) {
     console.log(reportJSON(result));

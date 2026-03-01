@@ -2,25 +2,63 @@ import { join } from 'node:path';
 import type { CheckResult, Issue } from '../types.js';
 import { fileExists, readFile, walkFiles } from '../util.js';
 
-// Codebase AI-readiness: structure, complexity, documentation
-export function checkReady(cwd: string, ignore: string[]): CheckResult {
+// Try to use @safetnsr/ai-ready if installed (richer per-file analysis)
+async function tryAiReady(cwd: string): Promise<CheckResult | null> {
+  try {
+    const mod = await import(/* webpackIgnore: true */ '@safetnsr/ai-ready' as string);
+    if (typeof mod.main !== 'function') return null;
+    const result = mod.main(['--json', cwd]);
+    if (!result || result.exitCode !== 0) return null;
+
+    const data = JSON.parse(result.output);
+    const issues: Issue[] = [];
+
+    // Convert ai-ready's per-file results to vet issues
+    if (data.files) {
+      const lowScoreFiles = data.files.filter((f: any) => f.score < 5);
+      for (const f of lowScoreFiles.slice(0, 5)) {
+        issues.push({
+          severity: 'warning',
+          message: `${f.file}: readiness ${f.score}/10 — ${f.reasons?.join(', ') || 'low score'}`,
+          file: f.file,
+          fixable: false,
+        });
+      }
+      if (lowScoreFiles.length > 5) {
+        issues.push({ severity: 'info', message: `...and ${lowScoreFiles.length - 5} more low-readiness files`, fixable: false });
+      }
+    }
+
+    // Map ai-ready score to vet format
+    const score = typeof data.score === 'number' ? data.score : 5;
+    return {
+      name: 'ready',
+      score: Math.round(Math.min(10, score) * 10) / 10,
+      maxScore: 10,
+      issues,
+      summary: `${data.files?.length || 0} files analyzed (via ai-ready) — ${issues.length} issues`,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Built-in fallback: simpler project-level checks
+function builtinReady(cwd: string, ignore: string[]): CheckResult {
   const issues: Issue[] = [];
   const files = walkFiles(cwd, ignore);
 
-  // 1. README exists — critical for AI context
   const hasReadme = files.some(f => /^readme\.(md|txt|rst)$/i.test(f));
   if (!hasReadme) {
     issues.push({ severity: 'error', message: 'no README — AI agents have no project context', fixable: true, fixHint: 'create a README.md' });
   }
 
-  // 2. Project manifest
   const manifests = ['package.json', 'pyproject.toml', 'Cargo.toml', 'go.mod', 'pom.xml', 'build.gradle', 'Gemfile', 'composer.json'];
   const hasManifest = manifests.some(m => files.includes(m));
   if (!hasManifest) {
     issues.push({ severity: 'error', message: 'no package manifest — agents can\'t resolve dependencies', fixable: false });
   }
 
-  // 3. Test coverage
   const codeExts = ['.ts', '.js', '.tsx', '.jsx', '.py', '.rs', '.go', '.java', '.rb', '.php', '.cs', '.swift', '.kt'];
   const testFiles = files.filter(f => /\.(test|spec)\.(ts|js|tsx|jsx|py)$/.test(f) || f.includes('__tests__/') || f.startsWith('tests/') || f.startsWith('test/'));
   const codeFiles = files.filter(f => codeExts.some(ext => f.endsWith(ext)));
@@ -28,7 +66,6 @@ export function checkReady(cwd: string, ignore: string[]): CheckResult {
     issues.push({ severity: 'error', message: 'no tests — AI agents produce better code when tests exist to validate against', fixable: false });
   }
 
-  // 4. Overly large files (>500 lines)
   let largeFileCount = 0;
   for (const f of files) {
     if (!codeExts.some(ext => f.endsWith(ext))) continue;
@@ -44,21 +81,18 @@ export function checkReady(cwd: string, ignore: string[]): CheckResult {
     issues.push({ severity: 'warning', message: `...and ${largeFileCount - 3} more large files`, fixable: false });
   }
 
-  // 5. .env without .env.example
   const hasEnv = files.some(f => f === '.env' || f === '.env.local');
   const hasEnvExample = files.some(f => f === '.env.example' || f === '.env.template');
   if (hasEnv && !hasEnvExample) {
     issues.push({ severity: 'warning', message: '.env exists but no .env.example — AI agents can\'t see env structure', fixable: false });
   }
 
-  // 6. No types in JS-heavy project
   const tsFiles = files.filter(f => f.endsWith('.ts') || f.endsWith('.tsx'));
   const jsFiles = files.filter(f => f.endsWith('.js') || f.endsWith('.jsx'));
   if (jsFiles.length > 10 && tsFiles.length === 0 && files.includes('package.json')) {
     issues.push({ severity: 'info', message: `${jsFiles.length} JS files, no TypeScript — typed code gives agents better context`, fixable: false });
   }
 
-  // Recalibrated scoring: errors = -3, warnings = -1.5, info = -0.3
   const errors = issues.filter(i => i.severity === 'error').length;
   const warnings = issues.filter(i => i.severity === 'warning').length;
   const infos = issues.filter(i => i.severity === 'info').length;
@@ -71,4 +105,10 @@ export function checkReady(cwd: string, ignore: string[]): CheckResult {
     issues,
     summary: issues.length === 0 ? 'codebase is well-structured for AI' : `${issues.length} readiness issues`,
   };
+}
+
+export async function checkReady(cwd: string, ignore: string[]): Promise<CheckResult> {
+  const rich = await tryAiReady(cwd);
+  if (rich) return rich;
+  return builtinReady(cwd, ignore);
 }

@@ -1,6 +1,6 @@
 {
   "name": "@safetnsr/vet",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "vet your AI-generated code — one command, six checks, zero config",
   "type": "module",
   "bin": {
@@ -38,5 +38,8 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "optionalDependencies": {
+    "@safetnsr/model-graveyard": "^0.2.0"
   }
 }
