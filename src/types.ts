@@ -30,3 +30,7 @@ export interface VetConfig {
   thresholds?: { min?: number };
   agents?: string[];
 }
+
+export interface DiffOptions {
+  since?: string;
+}

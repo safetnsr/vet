@@ -1,4 +1,4 @@
-import { join, basename } from 'node:path';
+import { join } from 'node:path';
 import type { CheckResult, Issue } from '../types.js';
 import { readFile, fileExists, walkFiles } from '../util.js';
 
@@ -14,101 +14,226 @@ const AGENT_CONFIGS: Record<string, { files: string[]; name: string }> = {
   cline: { files: ['.clinerules', '.cline/settings.json'], name: 'Cline' },
 };
 
+interface ConfigAnalysis {
+  file: string;
+  agent: string;
+  length: number;
+  existence: number;      // 0-10
+  completeness: number;   // 0-10
+  consistency: number;    // 0-10
+  specificity: number;    // 0-10
+  suggestions: string[];
+}
+
+function analyzeConfig(cwd: string, configFile: string, agentName: string, files: string[]): ConfigAnalysis {
+  const content = readFile(join(cwd, configFile)) || '';
+  const contentLower = content.toLowerCase();
+  const suggestions: string[] = [];
+
+  // Existence: it exists, so 10
+  const existence = 10;
+
+  // Completeness: does it cover the project's actual stack?
+  let completenessScore = 5; // base
+  let completenessChecks = 0;
+  let completenessHits = 0;
+
+  const pkgJson = readFile(join(cwd, 'package.json'));
+  const deps: Record<string, string> = {};
+  let projectName = '';
+  if (pkgJson) {
+    try {
+      const pkg = JSON.parse(pkgJson);
+      projectName = pkg.name || '';
+      Object.assign(deps, pkg.dependencies, pkg.devDependencies);
+    } catch { /* */ }
+  }
+
+  // Framework detection + config coverage
+  const frameworkMap: Record<string, { keywords: string[]; category: string }> = {
+    react: { keywords: ['react', 'jsx', 'tsx', 'component', 'hook', 'usestate', 'useeffect'], category: 'UI framework' },
+    next: { keywords: ['next', 'nextjs', 'app router', 'pages router', 'server component'], category: 'framework' },
+    vue: { keywords: ['vue', 'composition api', 'options api', 'ref(', 'reactive'], category: 'UI framework' },
+    svelte: { keywords: ['svelte', 'sveltekit', '$:'], category: 'UI framework' },
+    express: { keywords: ['express', 'middleware', 'router', 'req, res'], category: 'backend' },
+    hono: { keywords: ['hono', 'c.json', 'c.text'], category: 'backend' },
+    fastify: { keywords: ['fastify', 'schema', 'route'], category: 'backend' },
+    vitest: { keywords: ['vitest', 'describe', 'it(', 'expect', 'test('], category: 'testing' },
+    jest: { keywords: ['jest', 'describe', 'it(', 'expect', 'test('], category: 'testing' },
+    tailwind: { keywords: ['tailwind', 'className', 'tw-'], category: 'styling' },
+    prisma: { keywords: ['prisma', 'schema.prisma', 'prismaClient'], category: 'database' },
+    drizzle: { keywords: ['drizzle', 'drizzle-orm'], category: 'database' },
+  };
+
+  for (const [dep, info] of Object.entries(frameworkMap)) {
+    if (deps[dep] || deps[`@${dep}/core`] || deps[`${dep}-dom`]) {
+      completenessChecks++;
+      if (info.keywords.some(k => contentLower.includes(k))) {
+        completenessHits++;
+      } else {
+        suggestions.push(`add ${dep} conventions (${info.category} detected in dependencies)`);
+      }
+    }
+  }
+
+  if (completenessChecks > 0) {
+    completenessScore = Math.round((completenessHits / completenessChecks) * 10);
+  }
+
+  // Consistency: cross-reference with actual project config
+  let consistencyScore = 10;
+  const tsconfig = readFile(join(cwd, 'tsconfig.json'));
+  if (tsconfig) {
+    try {
+      const tc = JSON.parse(tsconfig);
+      const strict = tc.compilerOptions?.strict;
+      if (contentLower.includes('strict') && strict === false) {
+        consistencyScore -= 4;
+        suggestions.push('config says "strict" but tsconfig.strict is false — resolve contradiction');
+      }
+      if (contentLower.includes('esm') && tc.compilerOptions?.module?.toLowerCase()?.includes('commonjs')) {
+        consistencyScore -= 3;
+        suggestions.push('config mentions ESM but tsconfig uses CommonJS');
+      }
+    } catch { /* */ }
+  }
+
+  // Check if config mentions testing but no test framework installed
+  if ((contentLower.includes('test') || contentLower.includes('spec')) && !deps.vitest && !deps.jest && !deps.mocha && !deps.ava) {
+    consistencyScore -= 2;
+    suggestions.push('config mentions tests but no test framework in dependencies');
+  }
+
+  // Specificity: generic platitudes vs project-specific rules
+  let specificityScore = 5;
+  const genericPhrases = [
+    'keep functions small', 'write clean code', 'follow best practices',
+    'use meaningful names', 'handle errors', 'write tests', 'be consistent',
+    'follow conventions', 'keep it simple',
+  ];
+  let genericCount = 0;
+  for (const phrase of genericPhrases) {
+    if (contentLower.includes(phrase)) genericCount++;
+  }
+
+  // Specific indicators: file paths, function names, patterns, architecture
+  const specificIndicators = [
+    /\.(ts|js|py|rs|go)\b/, // mentions specific file types with context
+    /src\/|lib\/|app\/|pages\/|components\//, // directory structure
+    /import .+ from/, // code examples
+    /```/, // code blocks
+    /\bapi\/|route|endpoint/i, // API patterns
+    /\bmigration|schema|model\b/i, // data patterns
+  ];
+  let specificCount = 0;
+  for (const pattern of specificIndicators) {
+    if (pattern.test(content)) specificCount++;
+  }
+
+  if (genericCount > 3 && specificCount < 2) {
+    specificityScore = 2;
+    suggestions.push('mostly generic rules — add project-specific conventions, file paths, architecture patterns');
+  } else if (specificCount >= 4) {
+    specificityScore = 9;
+  } else if (specificCount >= 2) {
+    specificityScore = 6;
+  }
+
+  // Length-based adjustments
+  if (content.length < 100) {
+    specificityScore = Math.min(specificityScore, 2);
+    completenessScore = Math.min(completenessScore, 2);
+    suggestions.push('config is very sparse — add project context, conventions, and constraints');
+  } else if (content.length < 300) {
+    specificityScore = Math.min(specificityScore, 5);
+    suggestions.push('config could be richer — consider adding architecture decisions and code patterns');
+  }
+
+  return {
+    file: configFile,
+    agent: agentName,
+    length: content.length,
+    existence,
+    completeness: Math.max(0, completenessScore),
+    consistency: Math.max(0, consistencyScore),
+    specificity: Math.max(0, specificityScore),
+    suggestions,
+  };
+}
+
 export function checkConfig(cwd: string, ignore: string[]): CheckResult {
   const issues: Issue[] = [];
   const files = walkFiles(cwd, ignore);
 
   // Detect which agents have config
-  const detected: string[] = [];
-  const missing: string[] = [];
+  const analyses: ConfigAnalysis[] = [];
 
-  for (const [agent, info] of Object.entries(AGENT_CONFIGS)) {
-    const found = info.files.some(f => fileExists(join(cwd, f)));
-    if (found) detected.push(info.name);
-  }
-
-  if (detected.length === 0) {
-    issues.push({
-      severity: 'warning',
-      message: 'no AI agent config found — add CLAUDE.md, .cursorrules, or similar to guide AI behavior',
-      fixable: true,
-      fixHint: 'run vet init to generate agent config',
-    });
-  }
-
-  // Check quality of found configs
   for (const [agent, info] of Object.entries(AGENT_CONFIGS)) {
     for (const configFile of info.files) {
-      const content = readFile(join(cwd, configFile));
-      if (!content) continue;
-
-      // Too short to be useful
-      if (content.length < 50) {
-        issues.push({
-          severity: 'warning',
-          message: `${configFile} is only ${content.length} chars — probably too sparse to guide AI effectively`,
-          file: configFile,
-          fixable: false,
-        });
-      }
-
-      // Check if config mentions key project patterns
-      const pkgJson = readFile(join(cwd, 'package.json'));
-      if (pkgJson) {
-        try {
-          const pkg = JSON.parse(pkgJson);
-          const deps = { ...pkg.dependencies, ...pkg.devDependencies };
-
-          // Major frameworks that should be mentioned
-          const frameworks: Record<string, string[]> = {
-            react: ['react', 'jsx', 'tsx', 'component'],
-            next: ['next', 'nextjs', 'app router', 'pages router'],
-            vue: ['vue', 'composition api', 'options api'],
-            svelte: ['svelte', 'sveltekit'],
-            express: ['express', 'middleware', 'router'],
-            hono: ['hono'],
-            fastify: ['fastify'],
-            django: ['django'],
-            flask: ['flask'],
-          };
-
-          const contentLower = content.toLowerCase();
-          for (const [framework, keywords] of Object.entries(frameworks)) {
-            if (deps[framework] && !keywords.some(k => contentLower.includes(k))) {
-              issues.push({
-                severity: 'info',
-                message: `${configFile} doesn't mention ${framework} — but it's in your dependencies`,
-                file: configFile,
-                fixable: false,
-              });
-            }
-          }
-        } catch { /* invalid package.json, skip */ }
+      if (fileExists(join(cwd, configFile))) {
+        analyses.push(analyzeConfig(cwd, configFile, info.name, files));
       }
     }
   }
 
-  // Check for .gitignore (agents need to know what to ignore)
-  if (!fileExists(join(cwd, '.gitignore'))) {
+  if (analyses.length === 0) {
     issues.push({
-      severity: 'info',
-      message: 'no .gitignore — agents may create files in wrong directories',
-      fixable: false,
+      severity: 'error',
+      message: 'no AI agent config found — add CLAUDE.md, .cursorrules, or similar',
+      fixable: true,
+      fixHint: 'run vet init to generate agent config',
     });
+
+    return {
+      name: 'config',
+      score: 1,
+      maxScore: 10,
+      issues,
+      summary: 'no agent configs — critically under-configured',
+    };
   }
 
-  const errors = issues.filter(i => i.severity === 'error').length;
-  const warnings = issues.filter(i => i.severity === 'warning').length;
-  const infos = issues.filter(i => i.severity === 'info').length;
-  const score = Math.max(0, Math.min(10, 10 - errors * 2 - warnings * 1.5 - infos * 0.3));
+  // Aggregate scores from best config
+  const best = analyses.reduce((a, b) =>
+    (a.completeness + a.consistency + a.specificity) > (b.completeness + b.consistency + b.specificity) ? a : b
+  );
 
-  const configSummary = detected.length > 0 ? `configs: ${detected.join(', ')}` : 'no agent configs';
+  // Generate issues from analysis
+  if (best.completeness < 5) {
+    issues.push({ severity: 'warning', message: `${best.file}: low completeness (${best.completeness}/10) — doesn't mention key dependencies`, fixable: true, fixHint: 'run vet --fix to enrich' });
+  }
+  if (best.consistency < 7) {
+    issues.push({ severity: 'warning', message: `${best.file}: consistency issues (${best.consistency}/10) — contradicts project config`, fixable: false });
+  }
+  if (best.specificity < 5) {
+    issues.push({ severity: 'warning', message: `${best.file}: too generic (${best.specificity}/10) — add project-specific rules`, fixable: true, fixHint: 'run vet --fix to add specifics' });
+  }
+  if (best.length < 100) {
+    issues.push({ severity: 'warning', message: `${best.file}: only ${best.length} chars — too sparse to guide AI`, fixable: true });
+  }
+
+  for (const suggestion of best.suggestions.slice(0, 5)) {
+    issues.push({ severity: 'info', message: suggestion, file: best.file, fixable: false });
+  }
+
+  // Check .gitignore
+  if (!fileExists(join(cwd, '.gitignore'))) {
+    issues.push({ severity: 'warning', message: 'no .gitignore — agents may write to wrong directories', fixable: false });
+  }
+
+  // Score: weighted average of sub-scores
+  const subScore = (best.existence * 0.2 + best.completeness * 0.3 + best.consistency * 0.25 + best.specificity * 0.25);
+  const gitignorePenalty = fileExists(join(cwd, '.gitignore')) ? 0 : 1;
+  const finalScore = Math.max(0, Math.min(10, subScore - gitignorePenalty));
+
+  const agents = analyses.map(a => a.agent);
+  const uniqueAgents = [...new Set(agents)];
 
   return {
     name: 'config',
-    score: Math.round(score * 10) / 10,
+    score: Math.round(finalScore * 10) / 10,
     maxScore: 10,
     issues,
-    summary: issues.length === 0 ? `${configSummary} — well configured` : `${configSummary} — ${issues.length} suggestions`,
+    summary: `${uniqueAgents.join(', ')} — ${best.completeness >= 7 && best.specificity >= 7 ? 'well configured' : `needs work (${Math.round(finalScore)}/10)`}`,
   };
 }
