@@ -5,13 +5,11 @@ import { isGitRepo, readFile, c } from './util.js';
 import { checkReady } from './checks/ready.js';
 import { checkDiff } from './checks/diff.js';
 import { checkModels } from './checks/models.js';
-import { checkLinks } from './checks/links.js';
 import { checkConfig } from './checks/config.js';
 import { checkHistory } from './checks/history.js';
 import { checkScan } from './checks/scan.js';
 import { checkSecrets } from './checks/secrets.js';
 import { checkReceipt, runReceiptCommand } from './checks/receipt.js';
-import { checkEdge, runEdgeCommand } from './checks/edge.js';
 import { score } from './scorer.js';
 import { reportPretty, reportJSON } from './reporter.js';
 import type { VetConfig, CheckResult } from './types.js';
@@ -44,28 +42,24 @@ if (flags.has('--help') || flags.has('-h')) {
     npx @safetnsr/vet --watch            live monitoring during AI sessions
     npx @safetnsr/vet init               generate configs + hooks
     npx @safetnsr/vet receipt            show last agent session receipt
-    npx @safetnsr/vet edge               show human-edge score for git history
 
   ${c.dim}checks:${c.reset}
     ready     codebase readiness for AI agents
     diff      AI-specific anti-patterns in recent changes
     models    deprecated/risky model usage
-    links     dead markdown links
     config    agent config hygiene
     history   git history quality
     scan      malicious patterns in agent config files
     secrets   leaked secrets in build output and .env files
     receipt   last agent session audit (informational)
-    edge      human replaceability score from git history
 
   ${c.dim}options:${c.reset}
     --ci          CI mode (exit 1 if score < threshold)
-    --fix         auto-fix configs, models, links
+    --fix         auto-fix configs, models
     --since REF   diff against specific commit/range
     --watch       re-run on file changes
     --json        JSON output
     --pretty      force pretty output (even in pipes)
-    --explain     show detailed reasoning (edge subcommand)
     -h, --help    show this help
     -v, --version show version
 `);
@@ -82,7 +76,7 @@ if (flags.has('--version') || flags.has('-v')) {
   process.exit(0);
 }
 
-const COMMANDS = ['init', 'receipt', 'edge'];
+const COMMANDS = ['init', 'receipt'];
 const command = COMMANDS.includes(positional[0]) ? positional[0] : undefined;
 const cwd = resolve(positional.find(p => !COMMANDS.includes(p)) || '.');
 const isCI = flags.has('--ci');
@@ -112,12 +106,6 @@ if (command === 'receipt') {
   process.exit(0);
 }
 
-if (command === 'edge') {
-  const explain = flags.has('--explain');
-  runEdgeCommand(cwd, explain);
-  process.exit(0);
-}
-
 if (!isGitRepo(cwd)) {
   console.error(`${c.red}not a git repository${c.reset}. vet operates on git repos.`);
   process.exit(1);
@@ -129,14 +117,11 @@ if (isFix) {
 
   const { fixConfig } = await import('./fix/config.js');
   const { fixModels } = await import('./fix/models.js');
-  const { fixLinks } = await import('./fix/links.js');
-
   const configResult = fixConfig(cwd);
   const modelsResult = fixModels(cwd, ignore);
-  const linksResult = fixLinks(cwd, ignore);
 
-  const allMessages = [...configResult.messages, ...modelsResult.messages, ...linksResult.messages];
-  const totalFixed = configResult.fixed + modelsResult.fixed + linksResult.fixed;
+  const allMessages = [...configResult.messages, ...modelsResult.messages];
+  const totalFixed = configResult.fixed + modelsResult.fixed;
 
   if (allMessages.length > 0) {
     for (const msg of allMessages) console.log(msg);
@@ -147,7 +132,7 @@ if (isFix) {
 }
 
 async function runChecks(): Promise<ReturnType<typeof score>> {
-  const allChecks = ['ready', 'diff', 'models', 'links', 'config', 'history', 'scan', 'secrets', 'receipt', 'edge'];
+  const allChecks = ['ready', 'diff', 'models', 'config', 'history', 'scan', 'secrets', 'receipt'];
   const enabledChecks = config.checks || allChecks;
   const results: CheckResult[] = [];
 
@@ -155,14 +140,11 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
   if (enabledChecks.includes('ready')) results.push(await checkReady(cwd, ignore));
   if (enabledChecks.includes('diff')) results.push(checkDiff(cwd, { since }));
   if (enabledChecks.includes('models')) results.push(await checkModels(cwd, ignore));
-  if (enabledChecks.includes('links')) results.push(checkLinks(cwd, ignore));
   if (enabledChecks.includes('config')) results.push(checkConfig(cwd, ignore));
   if (enabledChecks.includes('history')) results.push(checkHistory(cwd));
   if (enabledChecks.includes('scan')) results.push(checkScan(cwd));
   if (enabledChecks.includes('secrets')) results.push(await checkSecrets(cwd));
   if (enabledChecks.includes('receipt')) results.push(await checkReceipt(cwd));
-  if (enabledChecks.includes('edge')) results.push(checkEdge(cwd));
-
   return score(cwd, results);
 }
 
