@@ -9,6 +9,7 @@ import { checkConfig } from './checks/config.js';
 import { checkHistory } from './checks/history.js';
 import { checkScan } from './checks/scan.js';
 import { checkSecrets } from './checks/secrets.js';
+import { checkDeps } from './checks/deps.js';
 import { checkReceipt, runReceiptCommand } from './checks/receipt.js';
 import { score } from './scorer.js';
 import { reportPretty, reportJSON } from './reporter.js';
@@ -52,6 +53,7 @@ if (flags.has('--help') || flags.has('-h')) {
     scan      malicious patterns in agent config files
     secrets   leaked secrets in build output and .env files
     receipt   last agent session audit (informational)
+    deps      phantom/hallucinated dependency detection
 
   ${c.dim}options:${c.reset}
     --ci          CI mode (exit 1 if score < threshold)
@@ -132,7 +134,7 @@ if (isFix) {
 }
 
 async function runChecks(): Promise<ReturnType<typeof score>> {
-  const allChecks = ['ready', 'diff', 'models', 'config', 'history', 'scan', 'secrets', 'receipt'];
+  const allChecks = ['ready', 'diff', 'models', 'config', 'history', 'scan', 'secrets', 'receipt', 'deps'];
   const enabledChecks = config.checks || allChecks;
   const results: CheckResult[] = [];
 
@@ -145,6 +147,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
   if (enabledChecks.includes('scan')) results.push(checkScan(cwd));
   if (enabledChecks.includes('secrets')) results.push(await checkSecrets(cwd));
   if (enabledChecks.includes('receipt')) results.push(await checkReceipt(cwd));
+  if (enabledChecks.includes('deps')) results.push(await checkDeps(cwd));
   return score(cwd, results);
 }
 
