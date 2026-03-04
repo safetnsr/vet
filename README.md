@@ -1,6 +1,6 @@
 # vet
 
-vet your AI-generated code. one command, six checks, zero config.
+vet your AI-generated code. one command, ten checks, zero config.
 
 ```bash
 npx @safetnsr/vet
@@ -18,6 +18,10 @@ works with Claude Code, Cursor, Copilot, Codex, Aider, Windsurf, Cline — anyth
 | **links** | broken markdown links? | validates relative links and wikilinks |
 | **config** | agent configs in place? | deep analysis of CLAUDE.md, .cursorrules, copilot-instructions — checks completeness, consistency, and specificity against your actual codebase |
 | **history** | git patterns healthy? | analyzes commit churn, AI attribution, large changes |
+| **scan** | malicious patterns in agent configs? | scans .claude/, .cursorrules, CLAUDE.md, .mcp/ for prompt injection, shell injection, exfiltration endpoints |
+| **secrets** | leaked secrets in build output? | scans dist/, build/, .next/ + .env files for API keys, tokens, connection strings using pattern + entropy analysis |
+| **receipt** | what did the last agent session do? | parses ~/.claude/projects/ JSONL session logs — files changed, commands run, packages installed, SHA256 integrity hash |
+| **edge** | how replaceable is your git history? | classifies commits by human-edge score: architecture (90) → debugging (85) → integration (80) → feature (60) → boilerplate (20) → cosmetic (10) |
 
 ## usage
 
@@ -45,6 +49,14 @@ npx @safetnsr/vet --json
 
 # generate configs + pre-commit hook
 npx @safetnsr/vet init
+
+# show last agent session receipt (ASCII or JSON)
+npx @safetnsr/vet receipt
+npx @safetnsr/vet receipt --json
+
+# show human-edge score for git history
+npx @safetnsr/vet edge
+npx @safetnsr/vet edge --explain
 ```
 
 ## output
@@ -109,13 +121,57 @@ config score breakdown:
   specificity:   3/10 — generic rules, nothing project-specific
 ```
 
+## subcommands
+
+### `vet receipt`
+
+Shows a receipt for the last Claude Code agent session — what files it touched, what commands it ran, what packages it installed, plus a SHA256 integrity hash:
+
+```
+╔══════════════════════════════════════════════╗
+║          AGENT SESSION RECEIPT               ║
+╠══════════════════════════════════════════════╣
+║ Session:  abc123def456                       ║
+║ Date:     2024-01-15 14:32:11 UTC            ║
+║ Duration: 12m 34s                            ║
+╠══════════════════════════════════════════════╣
+║ FILES CREATED (3)                            ║
+║   src/checks/scan.ts                         ║
+║   src/checks/secrets.ts                      ║
+║   test/scan.test.mjs                         ║
+╠══════════════════════════════════════════════╣
+║ SHA256: 3a7f9c2e...                          ║
+╚══════════════════════════════════════════════╝
+```
+
+### `vet edge`
+
+Analyzes git history and scores how AI-replaceable your contributions are:
+
+```
+  Human Edge Report  72/100
+
+  🏗️ Architecture     12  (28%) ████████████
+  🔍 Debugging         8  (19%) ████████
+  🔗 Integration       6  (14%) ██████
+  ⚡ Feature          10  (24%) ██████████
+  📋 Boilerplate       5  (12%) █████
+  🎨 Cosmetic          1   (2%) █
+
+  Top commits
+  90  a3f2b1c  refactor: extract auth middleware across all routes
+  85  7e8d9f1  fix: resolve race condition in session cleanup
+
+  → Strong position. Your work is deeply contextual and hard to automate.
+```
+
 ## config
 
 create `.vetrc` in your project root (optional):
 
 ```json
 {
-  "checks": ["ready", "diff", "models", "links", "config", "history"],
+  "checks": ["ready", "diff", "models", "links", "config", "history", "scan", "secrets", "receipt", "edge"],
   "ignore": ["vendor/", "generated/"],
   "thresholds": { "min": 6 }
 }

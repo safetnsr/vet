@@ -8,6 +8,10 @@ import { checkModels } from './checks/models.js';
 import { checkLinks } from './checks/links.js';
 import { checkConfig } from './checks/config.js';
 import { checkHistory } from './checks/history.js';
+import { checkScan } from './checks/scan.js';
+import { checkSecrets } from './checks/secrets.js';
+import { checkReceipt, runReceiptCommand } from './checks/receipt.js';
+import { checkEdge, runEdgeCommand } from './checks/edge.js';
 import { score } from './scorer.js';
 import { reportPretty, reportJSON } from './reporter.js';
 import type { VetConfig, CheckResult } from './types.js';
@@ -39,6 +43,20 @@ if (flags.has('--help') || flags.has('-h')) {
     npx @safetnsr/vet --since HEAD~5     check specific commit range
     npx @safetnsr/vet --watch            live monitoring during AI sessions
     npx @safetnsr/vet init               generate configs + hooks
+    npx @safetnsr/vet receipt            show last agent session receipt
+    npx @safetnsr/vet edge               show human-edge score for git history
+
+  ${c.dim}checks:${c.reset}
+    ready     codebase readiness for AI agents
+    diff      AI-specific anti-patterns in recent changes
+    models    deprecated/risky model usage
+    links     dead markdown links
+    config    agent config hygiene
+    history   git history quality
+    scan      malicious patterns in agent config files
+    secrets   leaked secrets in build output and .env files
+    receipt   last agent session audit (informational)
+    edge      human replaceability score from git history
 
   ${c.dim}options:${c.reset}
     --ci          CI mode (exit 1 if score < threshold)
@@ -47,6 +65,7 @@ if (flags.has('--help') || flags.has('-h')) {
     --watch       re-run on file changes
     --json        JSON output
     --pretty      force pretty output (even in pipes)
+    --explain     show detailed reasoning (edge subcommand)
     -h, --help    show this help
     -v, --version show version
 `);
@@ -58,12 +77,12 @@ if (flags.has('--version') || flags.has('-v')) {
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
     console.log(pkg.version);
   } catch {
-    console.log('0.2.0');
+    console.log('0.3.0');
   }
   process.exit(0);
 }
 
-const COMMANDS = ['init'];
+const COMMANDS = ['init', 'receipt', 'edge'];
 const command = COMMANDS.includes(positional[0]) ? positional[0] : undefined;
 const cwd = resolve(positional.find(p => !COMMANDS.includes(p)) || '.');
 const isCI = flags.has('--ci');
@@ -84,6 +103,18 @@ const ignore = config.ignore || [];
 if (command === 'init') {
   const { init } = await import('./init.js');
   await init(cwd);
+  process.exit(0);
+}
+
+if (command === 'receipt') {
+  const format = isJSON ? 'json' : 'ascii';
+  await runReceiptCommand(format);
+  process.exit(0);
+}
+
+if (command === 'edge') {
+  const explain = flags.has('--explain');
+  runEdgeCommand(cwd, explain);
   process.exit(0);
 }
 
@@ -116,7 +147,7 @@ if (isFix) {
 }
 
 async function runChecks(): Promise<ReturnType<typeof score>> {
-  const allChecks = ['ready', 'diff', 'models', 'links', 'config', 'history'];
+  const allChecks = ['ready', 'diff', 'models', 'links', 'config', 'history', 'scan', 'secrets', 'receipt', 'edge'];
   const enabledChecks = config.checks || allChecks;
   const results: CheckResult[] = [];
 
@@ -127,6 +158,10 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
   if (enabledChecks.includes('links')) results.push(checkLinks(cwd, ignore));
   if (enabledChecks.includes('config')) results.push(checkConfig(cwd, ignore));
   if (enabledChecks.includes('history')) results.push(checkHistory(cwd));
+  if (enabledChecks.includes('scan')) results.push(checkScan(cwd));
+  if (enabledChecks.includes('secrets')) results.push(await checkSecrets(cwd));
+  if (enabledChecks.includes('receipt')) results.push(await checkReceipt(cwd));
+  if (enabledChecks.includes('edge')) results.push(checkEdge(cwd));
 
   return score(cwd, results);
 }

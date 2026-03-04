@@ -1,6 +1,6 @@
 {
   "name": "@safetnsr/vet",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "vet your AI-generated code — one command, six checks, zero config",
   "type": "module",
   "bin": {
@@ -12,7 +12,8 @@
   ],
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/cli.ts"
+    "dev": "tsx src/cli.ts",
+    "test": "node --import tsx/esm --test 'test/*.test.mjs'"
   },
   "keywords": [
     "ai",
