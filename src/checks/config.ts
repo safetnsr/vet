@@ -186,8 +186,8 @@ export function checkConfig(cwd: string, ignore: string[]): CheckResult {
 
     return {
       name: 'config',
-      score: 1,
-      maxScore: 10,
+      score: 10,
+      maxScore: 100,
       issues,
       summary: 'no agent configs — critically under-configured',
     };
@@ -221,18 +221,18 @@ export function checkConfig(cwd: string, ignore: string[]): CheckResult {
     issues.push({ severity: 'warning', message: 'no .gitignore — agents may write to wrong directories', fixable: false });
   }
 
-  // Score: weighted average of sub-scores
-  const subScore = (best.existence * 0.2 + best.completeness * 0.3 + best.consistency * 0.25 + best.specificity * 0.25);
-  const gitignorePenalty = fileExists(join(cwd, '.gitignore')) ? 0 : 1;
-  const finalScore = Math.max(0, Math.min(10, subScore - gitignorePenalty));
+  // Score: weighted average of sub-scores (sub-scores are 0-10, multiply by 10 → 0-100)
+  const subScore = (best.existence * 0.2 + best.completeness * 0.3 + best.consistency * 0.25 + best.specificity * 0.25) * 10;
+  const gitignorePenalty = fileExists(join(cwd, '.gitignore')) ? 0 : 10;
+  const finalScore = Math.max(0, Math.min(100, subScore - gitignorePenalty));
 
   const agents = analyses.map(a => a.agent);
   const uniqueAgents = [...new Set(agents)];
 
   return {
     name: 'config',
-    score: Math.round(finalScore * 10) / 10,
-    maxScore: 10,
+    score: Math.round(finalScore),
+    maxScore: 100,
     issues,
     summary: `${uniqueAgents.join(', ')} — ${best.completeness >= 7 && best.specificity >= 7 ? 'well configured' : `needs work (${Math.round(finalScore)}/10)`}`,
   };

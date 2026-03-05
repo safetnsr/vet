@@ -288,16 +288,16 @@ export async function checkSecrets(cwd: string): Promise<CheckResult> {
     }
   }
 
-  // Score: each critical issue = -3, warning = -1
+  // Score: each critical issue = -30, warning = -10
   const errors = issues.filter(i => i.severity === 'error').length;
   const warnings = issues.filter(i => i.severity === 'warning').length;
-  const score = Math.max(0, Math.min(10, 10 - errors * 3 - warnings * 1));
+  const score = Math.max(0, Math.min(100, 100 - errors * 30 - warnings * 10));
 
   const buildNote = buildDir ? '' : ' (no build dir found)';
   return {
     name: 'secrets',
-    score: Math.round(score * 10) / 10,
-    maxScore: 10,
+    score: Math.round(score),
+    maxScore: 100,
     issues,
     summary: issues.length === 0
       ? `no leaked secrets detected${buildNote}`

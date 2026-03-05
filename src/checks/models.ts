@@ -25,12 +25,12 @@ async function tryModelGraveyard(cwd: string): Promise<CheckResult | null> {
       }
     }
 
-    const score = Math.max(0, 10 - issues.length * 2);
+    const score = Math.max(0, 100 - issues.length * 20);
 
     return {
       name: 'models',
-      score: Math.min(10, score),
-      maxScore: 10,
+      score: Math.min(100, score),
+      maxScore: 100,
       issues,
       summary: issues.length === 0
         ? `${report.filesScanned} files scanned (via model-graveyard) — all current`
@@ -117,12 +117,12 @@ function builtinModels(cwd: string, ignore: string[]): CheckResult {
     });
   }
 
-  const score = Math.max(0, 10 - issues.length * 2);
+  const score = Math.max(0, 100 - issues.length * 20);
 
   return {
     name: 'models',
-    score: Math.min(10, score),
-    maxScore: 10,
+    score: Math.min(100, score),
+    maxScore: 100,
     issues,
     summary: issues.length === 0 ? 'all model references current' : `${issues.length} deprecated model${issues.length > 1 ? 's' : ''} found`,
   };

@@ -362,8 +362,8 @@ export async function checkDebt(cwd: string, ignore: string[]): Promise<CheckRes
   if (sourceFiles.length === 0) {
     return {
       name: 'debt',
-      score: 10,
-      maxScore: 10,
+      score: 100,
+      maxScore: 100,
       issues: [],
       summary: 'no source files to analyze',
     };
@@ -396,13 +396,13 @@ export async function checkDebt(cwd: string, ignore: string[]): Promise<CheckRes
   issues.push(...driftIssues);
 
   // ── Scoring ──────────────────────────────────────────────────────────────
-  const dupPenalty = Math.min(6, dupIssues.length * 1.5);
-  const orphanPenalty = Math.min(3, orphanIssues.length * 0.5);
-  const wrapperPenalty = Math.min(1.5, wrapperIssues.length * 0.3);
-  const driftPenalty = Math.min(1, driftIssues.length * 0.2);
+  const dupPenalty = Math.min(60, dupIssues.length * 15);
+  const orphanPenalty = Math.min(30, orphanIssues.length * 5);
+  const wrapperPenalty = Math.min(15, wrapperIssues.length * 3);
+  const driftPenalty = Math.min(10, driftIssues.length * 2);
 
-  const rawScore = 10 - dupPenalty - orphanPenalty - wrapperPenalty - driftPenalty;
-  const finalScore = Math.max(0, Math.round(rawScore * 10) / 10);
+  const rawScore = 100 - dupPenalty - orphanPenalty - wrapperPenalty - driftPenalty;
+  const finalScore = Math.max(0, Math.round(rawScore));
 
   // ── Summary ──────────────────────────────────────────────────────────────
   const parts: string[] = [];
@@ -418,7 +418,7 @@ export async function checkDebt(cwd: string, ignore: string[]): Promise<CheckRes
   return {
     name: 'debt',
     score: finalScore,
-    maxScore: 10,
+    maxScore: 100,
     issues,
     summary,
   };

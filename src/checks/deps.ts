@@ -180,8 +180,8 @@ export async function checkDeps(cwd: string): Promise<CheckResult> {
   if (!hasPkgJson) {
     return {
       name: 'deps',
-      score: 10,
-      maxScore: 10,
+      score: 100,
+      maxScore: 100,
       issues: [],
       summary: 'no package.json found',
     };
@@ -283,8 +283,8 @@ export async function checkDeps(cwd: string): Promise<CheckResult> {
   // ── Scoring ────────────────────────────────────────────────────────────────
   const errors = issues.filter(i => i.severity === 'error').length;
   const warnings = issues.filter(i => i.severity === 'warning').length;
-  const rawScore = 10 - (errors * 3) - (warnings * 1);
-  const finalScore = Math.max(0, Math.min(10, rawScore));
+  const rawScore = 100 - (errors * 30) - (warnings * 10);
+  const finalScore = Math.max(0, Math.min(100, rawScore));
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const parts: string[] = [];
@@ -300,7 +300,7 @@ export async function checkDeps(cwd: string): Promise<CheckResult> {
   return {
     name: 'deps',
     score: finalScore,
-    maxScore: 10,
+    maxScore: 100,
     issues,
     summary,
   };

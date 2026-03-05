@@ -94,7 +94,7 @@ export function checkDiff(cwd: string, opts: DiffOptions = {}): CheckResult {
   const diff = getDiff(cwd, opts);
 
   if (!diff) {
-    return { name: 'diff', score: 10, maxScore: 10, issues: [], summary: 'no changes to check' };
+    return { name: 'diff', score: 100, maxScore: 100, issues: [], summary: 'no changes to check' };
   }
 
   const files = parseDiff(diff);
@@ -185,15 +185,15 @@ export function checkDiff(cwd: string, opts: DiffOptions = {}): CheckResult {
   // Recalibrated scoring
   const errors = issues.filter(i => i.severity === 'error').length;
   const warnings = issues.filter(i => i.severity === 'warning').length;
-  const score = Math.max(0, Math.min(10, 10 - errors * 2 - warnings * 0.75));
+  const score = Math.max(0, Math.min(100, 100 - errors * 20 - warnings * 7.5));
 
   const aiIssues = issues.filter(i => i.message.startsWith('[ai]')).length;
   const totalFiles = files.length;
 
   return {
     name: 'diff',
-    score: Math.round(score * 10) / 10,
-    maxScore: 10,
+    score: Math.round(score),
+    maxScore: 100,
     issues,
     summary: issues.length === 0
       ? `${totalFiles} file${totalFiles !== 1 ? 's' : ''} changed, clean`

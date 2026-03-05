@@ -1,7 +1,7 @@
 {
   "name": "@safetnsr/vet",
-  "version": "0.6.0",
-  "description": "vet your AI-generated code — one command, six checks, zero config",
+  "version": "1.0.0",
+  "description": "vet your AI-generated code — one command, one score card, one letter grade",
   "type": "module",
   "bin": {
     "vet": "dist/cli.js"

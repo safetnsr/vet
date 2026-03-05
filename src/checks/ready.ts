@@ -29,12 +29,12 @@ async function tryAiReady(cwd: string): Promise<CheckResult | null> {
       }
     }
 
-    // Map ai-ready score to vet format
-    const score = typeof data.score === 'number' ? data.score : 5;
+    // Map ai-ready score to vet format (scale to 0-100)
+    const score = typeof data.score === 'number' ? data.score : 50;
     return {
       name: 'ready',
-      score: Math.round(Math.min(10, score) * 10) / 10,
-      maxScore: 10,
+      score: Math.round(Math.min(100, score <= 10 ? score * 10 : score)),
+      maxScore: 100,
       issues,
       summary: `${data.files?.length || 0} files analyzed (via ai-ready) — ${issues.length} issues`,
     };
@@ -96,12 +96,12 @@ function builtinReady(cwd: string, ignore: string[]): CheckResult {
   const errors = issues.filter(i => i.severity === 'error').length;
   const warnings = issues.filter(i => i.severity === 'warning').length;
   const infos = issues.filter(i => i.severity === 'info').length;
-  const score = Math.max(0, Math.min(10, 10 - errors * 3 - warnings * 1.5 - infos * 0.3));
+  const score = Math.max(0, Math.min(100, 100 - errors * 30 - warnings * 15 - infos * 3));
 
   return {
     name: 'ready',
-    score: Math.round(score * 10) / 10,
-    maxScore: 10,
+    score: Math.round(score),
+    maxScore: 100,
     issues,
     summary: issues.length === 0 ? 'codebase is well-structured for AI' : `${issues.length} readiness issues`,
   };

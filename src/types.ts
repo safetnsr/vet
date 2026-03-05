@@ -1,7 +1,7 @@
 export interface CheckResult {
   name: string;
-  score: number;        // 0-10
-  maxScore: number;     // always 10
+  score: number;        // 0-100
+  maxScore: number;     // always 100
   issues: Issue[];
   summary: string;
 }
@@ -15,10 +15,20 @@ export interface Issue {
   fixHint?: string;
 }
 
+export interface CategoryResult {
+  name: 'security' | 'integrity' | 'debt' | 'deps';
+  score: number;        // 0-100
+  weight: number;       // 0.15-0.30
+  checks: CheckResult[];
+  issues: Issue[];
+}
+
 export interface VetResult {
   project: string;
-  score: number;
-  checks: CheckResult[];
+  version: string;
+  score: number;        // 0-100 weighted
+  grade: string;        // A-F
+  categories: CategoryResult[];
   totalIssues: number;
   fixableIssues: number;
   timestamp: string;
@@ -27,7 +37,7 @@ export interface VetResult {
 export interface VetConfig {
   checks?: string[];
   ignore?: string[];
-  thresholds?: { min?: number };
+  thresholds?: { min?: number; grade?: string };
   agents?: string[];
 }
 

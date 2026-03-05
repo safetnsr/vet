@@ -142,15 +142,15 @@ describe('checkDeps integration', () => {
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'test', dependencies: {}, devDependencies: {} }));
     const result = await checkDeps(dir);
     assert.strictEqual(result.name, 'deps');
-    assert.strictEqual(result.score, 10);
-    assert.strictEqual(result.maxScore, 10);
+    assert.strictEqual(result.score, 100);
+    assert.strictEqual(result.maxScore, 100);
     rmSync(dir, { recursive: true });
   });
 
   test('no package.json', async () => {
     const dir = makeTempDir();
     const result = await checkDeps(dir);
-    assert.strictEqual(result.score, 10);
+    assert.strictEqual(result.score, 100);
     assert.ok(result.summary.includes('no package.json'));
     rmSync(dir, { recursive: true });
   });
@@ -190,7 +190,7 @@ describe('checkDeps integration', () => {
     rmSync(dir, { recursive: true });
   });
 
-  test('scoring: errors reduce score by 3', async () => {
+  test('scoring: errors reduce score by 30', async () => {
     const dir = makeTempDir();
     writeFileSync(join(dir, 'package.json'), JSON.stringify({
       dependencies: { 'expresss': '^4.0.0' },  // typosquat of express
@@ -199,7 +199,7 @@ describe('checkDeps integration', () => {
     // Should have typosquat error + unused info
     const errors = result.issues.filter(i => i.severity === 'error');
     assert.ok(errors.length >= 1);
-    assert.ok(result.score <= 7);
+    assert.ok(result.score <= 70);
     rmSync(dir, { recursive: true });
   });
 
@@ -215,14 +215,14 @@ describe('checkDeps integration', () => {
   });
 
   test('scoring clamped to 0', () => {
-    // Manual check: 4 errors = 10 - 12 = clamped to 0
-    const score = Math.max(0, Math.min(10, 10 - (4 * 3) - (0 * 1)));
+    // Manual check: 4 errors = 100 - 120 = clamped to 0
+    const score = Math.max(0, Math.min(100, 100 - (4 * 30) - (0 * 10)));
     assert.strictEqual(score, 0);
   });
 
-  test('scoring clamped to 10', () => {
-    const score = Math.max(0, Math.min(10, 10 - (0 * 3) - (0 * 1)));
-    assert.strictEqual(score, 10);
+  test('scoring clamped to 100', () => {
+    const score = Math.max(0, Math.min(100, 100 - (0 * 30) - (0 * 10)));
+    assert.strictEqual(score, 100);
   });
 
   test('summary format with issues', async () => {

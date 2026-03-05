@@ -259,8 +259,8 @@ export async function checkReceipt(cwd: string): Promise<CheckResult> {
   if (!sessionFile) {
     return {
       name: 'receipt',
-      score: 10,
-      maxScore: 10,
+      score: 100,
+      maxScore: 100,
       issues: [{ severity: 'info', message: 'no claude session files found (~/.claude/projects/)', fixable: false }],
       summary: 'no session logs found',
     };
@@ -276,8 +276,8 @@ export async function checkReceipt(cwd: string): Promise<CheckResult> {
   } catch {
     return {
       name: 'receipt',
-      score: 10,
-      maxScore: 10,
+      score: 100,
+      maxScore: 100,
       issues: [{ severity: 'warning', message: 'could not parse session file', fixable: false }],
       summary: 'session parse error',
     };
@@ -309,7 +309,7 @@ export async function checkReceipt(cwd: string): Promise<CheckResult> {
   return {
     name: 'receipt',
     score: 10, // Receipt is informational — always full score
-    maxScore: 10,
+    maxScore: 100,
     issues,
     summary: `session ${sessionId}: ${totalActions} actions, ${actions.files_created.length} created, ${actions.files_modified.length} modified`,
   };

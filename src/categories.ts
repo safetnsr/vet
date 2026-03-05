@@ -1,0 +1,94 @@
+import type { CheckResult, CategoryResult, VetResult } from './types.js';
+import { basename } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+// ── Grade thresholds ─────────────────────────────────────────────────────────
+
+export function toGrade(score: number): string {
+  if (score >= 90) return 'A';
+  if (score >= 75) return 'B';
+  if (score >= 60) return 'C';
+  if (score >= 40) return 'D';
+  return 'F';
+}
+
+// ── Category weights ─────────────────────────────────────────────────────────
+
+const WEIGHTS = {
+  security: 0.30,
+  integrity: 0.30,
+  debt: 0.25,
+  deps: 0.15,
+} as const;
+
+// ── Average scores within a category ────────────────────────────────────────
+
+function averageScore(checks: CheckResult[]): number {
+  if (checks.length === 0) return 100;
+  const total = checks.reduce((sum, c) => sum + c.score, 0);
+  return Math.round(total / checks.length);
+}
+
+// ── Group checks into categories ─────────────────────────────────────────────
+
+export function buildCategories(checkMap: {
+  security: CheckResult[];
+  integrity: CheckResult[];
+  debt: CheckResult[];
+  deps: CheckResult[];
+}): CategoryResult[] {
+  const categories: CategoryResult[] = [];
+
+  for (const name of ['security', 'integrity', 'debt', 'deps'] as const) {
+    const checks = checkMap[name];
+    const score = averageScore(checks);
+    const issues = checks.flatMap(c => c.issues);
+    categories.push({
+      name,
+      score,
+      weight: WEIGHTS[name],
+      checks,
+      issues,
+    });
+  }
+
+  return categories;
+}
+
+// ── Build VetResult from categories ─────────────────────────────────────────
+
+export function buildVetResult(project: string, categories: CategoryResult[]): VetResult {
+  // Weighted average
+  let weightedSum = 0;
+  let totalWeight = 0;
+  for (const cat of categories) {
+    weightedSum += cat.score * cat.weight;
+    totalWeight += cat.weight;
+  }
+  const overallScore = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 0;
+  const grade = toGrade(overallScore);
+
+  const allIssues = categories.flatMap(c => c.issues);
+
+  // Read version from package.json
+  let version = '1.0.0';
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const pkg = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf-8'));
+    version = pkg.version || version;
+  } catch { /* use default */ }
+
+  return {
+    project: basename(project),
+    version,
+    score: overallScore,
+    grade,
+    categories,
+    totalIssues: allIssues.length,
+    fixableIssues: allIssues.filter(i => i.fixable).length,
+    timestamp: new Date().toISOString(),
+  };
+}

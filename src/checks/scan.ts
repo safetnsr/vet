@@ -241,12 +241,12 @@ export function checkScan(cwd: string): CheckResult {
 
   const criticals = findings.filter(f => f.severity === 'critical').length;
   const highs = findings.filter(f => f.severity === 'high').length;
-  const score = Math.max(0, Math.min(10, 10 - criticals * 4 - highs * 1.5));
+  const score = Math.max(0, Math.min(100, 100 - criticals * 40 - highs * 15));
 
   return {
     name: 'scan',
-    score: Math.round(score * 10) / 10,
-    maxScore: 10,
+    score: Math.round(score),
+    maxScore: 100,
     issues,
     summary: filesScanned === 0
       ? 'no agent config files found'

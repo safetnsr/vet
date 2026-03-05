@@ -24,7 +24,7 @@ function cleanup(dir) {
 
 describe('checkDebt', () => {
   // 1. clean project = score 10
-  test('clean project scores 10 with no issues', async () => {
+  test('clean project scores 100 with no issues', async () => {
     const dir = makeTempProject({
       'src/a.ts': `function processOrder(order) {
   if (!order.items || order.items.length === 0) throw new Error("empty");
@@ -45,7 +45,7 @@ describe('checkDebt', () => {
     });
     const result = await checkDebt(dir, []);
     assert.strictEqual(result.name, 'debt');
-    assert.strictEqual(result.score, 10);
+    assert.strictEqual(result.score, 100);
     assert.strictEqual(result.issues.length, 0);
     cleanup(dir);
   });
@@ -66,7 +66,7 @@ describe('checkDebt', () => {
     const result = await checkDebt(dir, []);
     const dups = result.issues.filter(i => i.message.includes('duplicate') || i.message.includes('similar'));
     assert.ok(dups.length >= 1, `expected duplicates, got: ${JSON.stringify(result.issues)}`);
-    assert.ok(result.score < 10);
+    assert.ok(result.score < 100);
     cleanup(dir);
   });
 
@@ -256,7 +256,7 @@ export function usedHelper() {
 }`,
     });
     const result = await checkDebt(dir, []);
-    assert.ok(result.score < 10, 'mixed issues should lower score');
+    assert.ok(result.score < 100, 'mixed issues should lower score');
     assert.ok(result.issues.length >= 2, 'should have multiple issues');
     cleanup(dir);
   });
@@ -281,11 +281,11 @@ export function usedHelper() {
     cleanup(dir);
   });
 
-  // 14. empty project = score 10
-  test('empty project scores 10', async () => {
+  // 14. empty project = score 100
+  test('empty project scores 100', async () => {
     const dir = makeTempProject({});
     const result = await checkDebt(dir, []);
-    assert.strictEqual(result.score, 10);
+    assert.strictEqual(result.score, 100);
     assert.strictEqual(result.issues.length, 0);
     cleanup(dir);
   });

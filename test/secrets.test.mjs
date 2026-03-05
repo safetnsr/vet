@@ -10,13 +10,13 @@ function makeTmpDir() {
   return mkdtempSync(join(tmpdir(), 'vet-secrets-'));
 }
 
-test('checkSecrets: clean project returns score 10', async () => {
+test('checkSecrets: clean project returns score 100', async () => {
   const dir = makeTmpDir();
   try {
     const result = await checkSecrets(dir);
     assert.equal(result.name, 'secrets');
-    assert.equal(result.maxScore, 10);
-    assert.equal(result.score, 10);
+    assert.equal(result.maxScore, 100);
+    assert.equal(result.score, 100);
   } finally {
     rmSync(dir, { recursive: true });
   }
@@ -27,7 +27,7 @@ test('checkSecrets: detects Anthropic key in .env', async () => {
   try {
     writeFileSync(join(dir, '.env'), 'ANTHROPIC_API_KEY=sk-ant-api03-ABCDEFGH12345678901234567890123456789012345678');
     const result = await checkSecrets(dir);
-    assert.ok(result.score < 10, 'score should drop when key found');
+    assert.ok(result.score < 100, 'score should drop when key found');
     assert.ok(result.issues.some(i => i.message.includes('Anthropic')), 'should mention Anthropic');
   } finally {
     rmSync(dir, { recursive: true });

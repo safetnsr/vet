@@ -11,9 +11,11 @@ import { checkScan } from './checks/scan.js';
 import { checkSecrets } from './checks/secrets.js';
 import { checkDeps } from './checks/deps.js';
 import { checkDebt } from './checks/debt.js';
+import { checkIntegrity } from './checks/integrity.js';
 import { checkReceipt, runReceiptCommand } from './checks/receipt.js';
 import { score } from './scorer.js';
-import { reportPretty, reportJSON } from './reporter.js';
+import { toGrade } from './categories.js';
+import { reportPretty, reportJSON, reportBadge } from './reporter.js';
 import type { VetConfig, CheckResult } from './types.js';
 
 const args = process.argv.slice(2);
@@ -34,31 +36,32 @@ const positional = args.filter(a => !a.startsWith('-'));
 
 if (flags.has('--help') || flags.has('-h')) {
   console.log(`
-  ${c.bold}vet${c.reset} — vet your AI-generated code
+  ${c.bold}vet${c.reset} — AI code health score card
 
   ${c.dim}usage:${c.reset}
-    npx @safetnsr/vet [dir]              run all checks
+    npx @safetnsr/vet [dir]              run all checks, show score card
     npx @safetnsr/vet --fix              auto-repair fixable issues
-    npx @safetnsr/vet --ci               exit code 1 if below threshold
+    npx @safetnsr/vet --ci               exit code 1 if below grade C
+    npx @safetnsr/vet --hook             pre-commit hook mode (grade C threshold)
+    npx @safetnsr/vet --badge            output markdown badge string
     npx @safetnsr/vet --since HEAD~5     check specific commit range
     npx @safetnsr/vet --watch            live monitoring during AI sessions
     npx @safetnsr/vet init               generate configs + hooks
     npx @safetnsr/vet receipt            show last agent session receipt
 
-  ${c.dim}checks:${c.reset}
-    ready     codebase readiness for AI agents
-    diff      AI-specific anti-patterns in recent changes
-    models    deprecated/risky model usage
-    config    agent config hygiene
-    history   git history quality
-    scan      malicious patterns in agent config files
-    secrets   leaked secrets in build output and .env files
-    receipt   last agent session audit (informational)
-    deps      phantom/hallucinated dependency detection
-    debt      AI-generated technical debt patterns
+  ${c.dim}categories:${c.reset}
+    security   (30%)  scan, secrets, config, model usage
+    integrity  (30%)  diff, hallucinated imports, empty catches, stubbed tests
+    debt       (25%)  near-duplicates, orphaned exports, naming drift
+    deps       (15%)  phantom deps, typosquats, dead deps
+
+  ${c.dim}grades:${c.reset}
+    A  ≥ 90    B  ≥ 75    C  ≥ 60    D  ≥ 40    F  < 40
 
   ${c.dim}options:${c.reset}
-    --ci          CI mode (exit 1 if score < threshold)
+    --ci          CI mode (exit 1 if score below threshold)
+    --hook        pre-commit hook mode (exit 1 if below grade C)
+    --badge       print markdown badge string and exit
     --fix         auto-fix configs, models
     --since REF   diff against specific commit/range
     --watch       re-run on file changes
@@ -75,7 +78,7 @@ if (flags.has('--version') || flags.has('-v')) {
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
     console.log(pkg.version);
   } catch {
-    console.log('0.3.0');
+    console.log('1.0.0');
   }
   process.exit(0);
 }
@@ -84,9 +87,11 @@ const COMMANDS = ['init', 'receipt'];
 const command = COMMANDS.includes(positional[0]) ? positional[0] : undefined;
 const cwd = resolve(positional.find(p => !COMMANDS.includes(p)) || '.');
 const isCI = flags.has('--ci');
+const isHook = flags.has('--hook');
 const isFix = flags.has('--fix');
 const isWatch = flags.has('--watch');
-const isJSON = flags.has('--json') || (!process.stdout.isTTY && !flags.has('--pretty'));
+const isBadge = flags.has('--badge');
+const isJSON = flags.has('--json') || (!process.stdout.isTTY && !flags.has('--pretty') && !isBadge);
 const since = flagMap.get('since');
 
 // Load config
@@ -136,22 +141,45 @@ if (isFix) {
 }
 
 async function runChecks(): Promise<ReturnType<typeof score>> {
-  const allChecks = ['ready', 'diff', 'models', 'config', 'history', 'scan', 'secrets', 'receipt', 'deps', 'debt'];
-  const enabledChecks = config.checks || allChecks;
-  const results: CheckResult[] = [];
+  // Run all checks, grouped into categories
+  // Security: scan, secrets, config, models
+  const [scanResult, secretsResult, configResult, modelsResult] = await Promise.all([
+    Promise.resolve(checkScan(cwd)),
+    checkSecrets(cwd),
+    Promise.resolve(checkConfig(cwd, ignore)),
+    checkModels(cwd, ignore),
+  ]);
 
-  // ready and models are async (try rich subpackages first, fallback to built-in)
-  if (enabledChecks.includes('ready')) results.push(await checkReady(cwd, ignore));
-  if (enabledChecks.includes('diff')) results.push(checkDiff(cwd, { since }));
-  if (enabledChecks.includes('models')) results.push(await checkModels(cwd, ignore));
-  if (enabledChecks.includes('config')) results.push(checkConfig(cwd, ignore));
-  if (enabledChecks.includes('history')) results.push(checkHistory(cwd));
-  if (enabledChecks.includes('scan')) results.push(checkScan(cwd));
-  if (enabledChecks.includes('secrets')) results.push(await checkSecrets(cwd));
-  if (enabledChecks.includes('receipt')) results.push(await checkReceipt(cwd));
-  if (enabledChecks.includes('deps')) results.push(await checkDeps(cwd));
-  if (enabledChecks.includes('debt')) results.push(await checkDebt(cwd, ignore));
-  return score(cwd, results);
+  // Integrity: diff, integrity checks
+  const diffResult = checkDiff(cwd, { since });
+  const integrityResult = await checkIntegrity(cwd, ignore);
+
+  // Debt: ready, history, debt
+  const [readyResult, debtResult] = await Promise.all([
+    checkReady(cwd, ignore),
+    checkDebt(cwd, ignore),
+  ]);
+  const historyResult = checkHistory(cwd);
+
+  // Deps: deps
+  const depsResult = await checkDeps(cwd);
+
+  // Receipt is informational — fold into integrity category but keep low weight
+  const receiptResult = await checkReceipt(cwd);
+
+  return score(cwd, {
+    security: [scanResult, secretsResult, configResult, modelsResult],
+    integrity: [diffResult, integrityResult, receiptResult],
+    debt: [readyResult, historyResult, debtResult],
+    deps: [depsResult],
+  });
+}
+
+// --badge mode
+if (isBadge && !isWatch) {
+  const result = await runChecks();
+  console.log(reportBadge(result));
+  process.exit(0);
 }
 
 // --watch mode
@@ -196,8 +224,11 @@ if (isWatch) {
     console.log(reportPretty(result));
   }
 
-  if (isCI) {
-    const threshold = config.thresholds?.min ?? 6;
-    process.exit(result.score >= threshold ? 0 : 1);
+  if (isCI || isHook) {
+    // --hook uses grade C (60) as threshold
+    // --ci uses config threshold or grade C default
+    const minScore = isHook ? 60 : (config.thresholds?.min ?? 60);
+    const minGrade = isHook ? 'C' : (config.thresholds?.grade ?? 'C');
+    process.exit(result.score >= minScore ? 0 : 1);
   }
 }

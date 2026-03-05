@@ -8,7 +8,7 @@ export function checkHistory(cwd: string): CheckResult {
   // Get recent commits (last 50) — use execFileSync to avoid shell pipe interpretation
   const log = gitExec(['log', '--oneline', '-50', '--format=%H|%an|%s'], cwd);
   if (!log) {
-    return { name: 'history', score: 10, maxScore: 10, issues: [], summary: 'no git history to analyze' };
+    return { name: 'history', score: 100, maxScore: 100, issues: [], summary: 'no git history to analyze' };
   }
 
   const commits = log.split('\n').filter(Boolean).map(line => {
@@ -74,12 +74,12 @@ export function checkHistory(cwd: string): CheckResult {
   const aiPct = commits.length > 0 ? Math.round((aiCommits / commits.length) * 100) : 0;
   const infos = issues.filter(i => i.severity === 'info').length;
   const warnings = issues.filter(i => i.severity === 'warning').length;
-  const score = Math.max(0, Math.min(10, 10 - warnings * 1 - infos * 0.2));
+  const score = Math.max(0, Math.min(100, 100 - warnings * 10 - infos * 2));
 
   return {
     name: 'history',
-    score: Math.round(score * 10) / 10,
-    maxScore: 10,
+    score: Math.round(score),
+    maxScore: 100,
     issues,
     summary: `${commits.length} recent commits${aiPct > 0 ? ` (~${aiPct}% AI-attributed)` : ''}, ${issues.length} observation${issues.length !== 1 ? 's' : ''}`,
   };
