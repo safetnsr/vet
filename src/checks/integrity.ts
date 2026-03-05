@@ -159,7 +159,7 @@ function checkEmptyCatch(cwd: string, files: string[]): Issue[] {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
-      // catch(e) {} or catch(err) {} — empty catch
+      // single-line catch with param and empty body — error silently swallowed
       if (/catch\s*\([^)]*\)\s*\{\s*\}/.test(line)) {
         issues.push({
           severity: 'error',
@@ -172,7 +172,7 @@ function checkEmptyCatch(cwd: string, files: string[]): Issue[] {
         continue;
       }
 
-      // catch {} (no param)
+      // single-line catch without param and empty body
       if (/catch\s*\{\s*\}/.test(line)) {
         issues.push({
           severity: 'error',

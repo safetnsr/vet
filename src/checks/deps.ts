@@ -70,20 +70,20 @@ export function levenshtein(a: string, b: string): number {
 export function extractImports(source: string): string[] {
   const imports = new Set<string>();
 
-  // import ... from 'pkg'
+  // static import: import X from <specifier>
   const importFrom = /import\s+(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"]/g;
   let match: RegExpExecArray | null;
   while ((match = importFrom.exec(source)) !== null) {
     imports.add(match[1]);
   }
 
-  // require('pkg')
+  // CommonJS require
   const requirePat = /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
   while ((match = requirePat.exec(source)) !== null) {
     imports.add(match[1]);
   }
 
-  // import('pkg')
+  // dynamic import()
   const dynamicImport = /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
   while ((match = dynamicImport.exec(source)) !== null) {
     imports.add(match[1]);

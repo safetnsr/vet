@@ -20,10 +20,6 @@ function gradeColor(grade: string): string {
   }
 }
 
-function categoryLabel(name: string): string {
-  return name.padEnd(10);
-}
-
 export function reportPretty(result: VetResult): string {
   const lines: string[] = [];
 
@@ -38,7 +34,7 @@ export function reportPretty(result: VetResult): string {
   for (const cat of result.categories) {
     const scoreStr = `${cat.score}/100`;
     const pad = ' '.repeat(Math.max(0, 6 - scoreStr.length));
-    lines.push(`  ${categoryLabel(cat.name)}${scoreStr}${pad}  ${bar(cat.score)}`);
+    lines.push(`  ${cat.name.padEnd(10)}${scoreStr}${pad}  ${bar(cat.score)}`);
   }
 
   // Overall grade
@@ -78,7 +74,14 @@ export function reportPretty(result: VetResult): string {
 }
 
 export function reportJSON(result: VetResult): string {
-  return JSON.stringify(result, null, 2);
+  return JSON.stringify({
+    project: result.project,
+    version: result.version,
+    score: result.score,
+    grade: result.grade,
+    fixableIssues: result.fixableIssues,
+    categories: result.categories,
+  }, null, 2);
 }
 
 export function reportBadge(result: VetResult): string {

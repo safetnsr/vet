@@ -1,4 +1,4 @@
-import { execSync, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
@@ -15,20 +15,18 @@ export const c = {
   gray: '\x1b[90m',
 };
 
-export function git(cmd: string, cwd: string): string {
-  try {
-    return execSync(`git ${cmd}`, { cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
-  } catch {
-    return '';
-  }
-}
-
+/** Run git with an array of args (safe, no shell injection). */
 export function gitExec(args: string[], cwd: string): string {
   try {
     return execFileSync('git', args, { cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
   } catch {
     return '';
   }
+}
+
+/** Run git with a command string (splits on spaces). Use gitExec for dynamic args. */
+export function git(cmd: string, cwd: string): string {
+  return gitExec(cmd.split(/\s+/), cwd);
 }
 
 export function isGitRepo(cwd: string): boolean {
@@ -39,6 +37,7 @@ export function readFile(path: string): string | null {
   try { return readFileSync(path, 'utf-8'); } catch { return null; }
 }
 
+/** Returns true if the path exists (file or directory). Convenience alias for existsSync. */
 export function fileExists(path: string): boolean {
   return existsSync(path);
 }

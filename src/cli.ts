@@ -14,6 +14,7 @@ import { checkDeps } from './checks/deps.js';
 import { checkDebt } from './checks/debt.js';
 import { checkIntegrity } from './checks/integrity.js';
 import { checkReceipt, runReceiptCommand } from './checks/receipt.js';
+import { checkMemory } from './checks/memory.js';
 import { checkMap, renderMapReport } from './checks/map.js';
 import { score } from './scorer.js';
 import { toGrade } from './categories.js';
@@ -181,9 +182,12 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
   // Receipt is informational — fold into integrity category but keep low weight
   const receiptResult = await checkReceipt(cwd);
 
+  // Memory: stale facts in agent memory files
+  const memoryResult = checkMemory(cwd);
+
   return score(cwd, {
     security: [scanResult, secretsResult, configResult, modelsResult, owaspResult],
-    integrity: [diffResult, integrityResult, receiptResult],
+    integrity: [diffResult, integrityResult, receiptResult, memoryResult],
     debt: [readyResult, historyResult, debtResult],
     deps: [depsResult],
   });
