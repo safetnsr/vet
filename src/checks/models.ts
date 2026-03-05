@@ -11,8 +11,13 @@ async function tryModelGraveyard(cwd: string): Promise<CheckResult | null> {
     const report = await mod.scan(cwd);
     const issues: Issue[] = [];
 
+    // Files that define deprecated model registries should not be flagged
+    const SELF_FILES = ['models.ts', 'models.js', 'model-graveyard', 'model-registry', 'sunset', 'fix/models'];
+
     for (const match of report.matches) {
       if (!match.model) continue;
+      // Skip self-referencing files (model definition/fix files)
+      if (match.file && SELF_FILES.some(s => match.file.toLowerCase().includes(s))) continue;
       if (match.model.status === 'deprecated' || match.model.status === 'eol') {
         issues.push({
           severity: 'error',

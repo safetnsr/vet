@@ -41,26 +41,65 @@ function resolveRelativeImport(importPath: string, fromFile: string, cwd: string
   return false;
 }
 
+function isInsideStringLiteral(line: string, matchIndex: number): boolean {
+  // Check if the match position is inside a string literal (template literal, quote)
+  // by counting unescaped quotes before the match
+  let inSingle = false;
+  let inDouble = false;
+  let inTemplate = false;
+  for (let i = 0; i < matchIndex && i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '\\') { i++; continue; }
+    if (ch === "'" && !inDouble && !inTemplate) inSingle = !inSingle;
+    else if (ch === '"' && !inSingle && !inTemplate) inDouble = !inDouble;
+    else if (ch === '`' && !inSingle && !inDouble) inTemplate = !inTemplate;
+  }
+  // If we're inside a string context AND the line itself is not an import/require statement,
+  // then this is likely a string literal containing import-like text
+  return inSingle || inDouble || inTemplate;
+}
+
+function isCommentLine(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*');
+}
+
 function extractRelativeImports(source: string): { path: string; line: number }[] {
   const imports: { path: string; line: number }[] = [];
   const lines = source.split('\n');
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    // import ... from './foo' or '../bar'
-    const fromMatch = line.match(/from\s+['"](\.[^'"]+)['"]/);
-    if (fromMatch) {
-      imports.push({ path: fromMatch[1], line: i + 1 });
+    // Skip comment lines
+    if (isCommentLine(line)) continue;
+    const trimmed = line.trim();
+
+    // import ... from './foo' or '../bar' — must be an actual import statement
+    if (/^\s*(?:import|export)\s/.test(line)) {
+      const fromMatch = line.match(/from\s+['"](\.[^'"]+)['"]/);
+      if (fromMatch) {
+        imports.push({ path: fromMatch[1], line: i + 1 });
+      }
     }
-    // require('./foo')
+    // require('./foo') — must be at statement level, not inside a string
     const reqMatch = line.match(/require\s*\(\s*['"](\.[^'"]+)['"]\s*\)/);
-    if (reqMatch) {
-      imports.push({ path: reqMatch[1], line: i + 1 });
+    if (reqMatch && !isInsideStringLiteral(line, line.indexOf(reqMatch[0]))) {
+      // Skip if the require is inside a string literal (test fixtures)
+      const beforeReq = line.substring(0, line.indexOf(reqMatch[0]));
+      if (!/['"`]/.test(beforeReq.slice(-1))) {
+        imports.push({ path: reqMatch[1], line: i + 1 });
+      }
     }
-    // import('./foo')
-    const dynMatch = line.match(/import\s*\(\s*['"](\.[^'"]+)['"]\s*\)/);
-    if (dynMatch) {
-      imports.push({ path: dynMatch[1], line: i + 1 });
+    // Dynamic import('./foo') — actual import() call, not in string
+    if (/^\s*(?:const|let|var|await|return)?\s*/.test(line)) {
+      const dynMatch = line.match(/import\s*\(\s*['"](\.[^'"]+)['"]\s*\)/);
+      if (dynMatch && !isCommentLine(line)) {
+        // Make sure it's not inside a string literal (e.g. a test describing imports)
+        const matchIdx = line.indexOf(dynMatch[0]);
+        if (!isInsideStringLiteral(line, matchIdx)) {
+          imports.push({ path: dynMatch[1], line: i + 1 });
+        }
+      }
     }
   }
 
@@ -100,12 +139,18 @@ function checkHallucinatedImports(cwd: string, files: string[]): Issue[] {
 
 // ── Empty catch blocks ───────────────────────────────────────────────────────
 
+function isTestFile(file: string): boolean {
+  return /\.(test|spec)\.[jt]sx?$/.test(file) || file.includes('__tests__') || /^test[/\\]/.test(file);
+}
+
 function checkEmptyCatch(cwd: string, files: string[]): Issue[] {
   const issues: Issue[] = [];
   const sourceExts = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs']);
 
   for (const file of files) {
     if (!sourceExts.has(extname(file))) continue;
+    // Skip test files — empty catches in tests are usually intentional (testing error paths)
+    if (isTestFile(file)) continue;
 
     const content = readFile(join(cwd, file));
     if (!content) continue;
@@ -254,6 +299,8 @@ function checkUnhandledAsync(cwd: string, files: string[]): Issue[] {
 
   for (const file of files) {
     if (!sourceExts.has(extname(file))) continue;
+    // Skip test files — test runners handle errors at the framework level
+    if (isTestFile(file)) continue;
 
     const content = readFile(join(cwd, file));
     if (!content) continue;

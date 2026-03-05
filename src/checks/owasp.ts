@@ -1,5 +1,6 @@
 import { join, relative } from 'node:path';
-import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { readFileSync, statSync, existsSync } from 'node:fs';
+import { isTextFile as utilIsTextFile, collectDirFiles as utilCollectDirFiles } from '../util.js';
 import type { CheckResult, Issue } from '../types.js';
 
 // ── Agent config file targets ─────────────────────────────────────────────────
@@ -28,36 +29,10 @@ const MCP_CONFIG_PATHS = [
   '.claude/mcp.json',
 ];
 
-// ── File helpers ──────────────────────────────────────────────────────────────
+// ── File helpers (delegated to util.ts) ──────────────────────────────────────
 
-function isTextFile(filePath: string): boolean {
-  try {
-    const buf = readFileSync(filePath);
-    const sampleSize = Math.min(512, buf.length);
-    for (let i = 0; i < sampleSize; i++) {
-      if (buf[i] === 0) return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function collectDirFiles(dir: string): string[] {
-  const files: string[] = [];
-  try {
-    const entries = readdirSync(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const full = join(dir, entry.name);
-      if (entry.isFile()) {
-        files.push(full);
-      } else if (entry.isDirectory()) {
-        files.push(...collectDirFiles(full));
-      }
-    }
-  } catch { /* skip */ }
-  return files;
-}
+const isTextFile = utilIsTextFile;
+const collectDirFiles = utilCollectDirFiles;
 
 function collectAgentConfigFiles(cwd: string): string[] {
   const files: string[] = [];

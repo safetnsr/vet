@@ -234,9 +234,11 @@ export async function checkDeps(cwd: string): Promise<CheckResult> {
   // ── 3 & 4. Dead deps + phantom imports ─────────────────────────────────────
   const sourceExts = new Set(['.ts', '.js', '.tsx', '.jsx', '.mts', '.mjs', '.cts', '.cjs']);
   const allFiles = walkFiles(cwd);
+  const isTestFile = (f: string) => /\.(test|spec)\.[jt]sx?$/.test(f) || f.includes('__tests__') || /^test[/\\]/.test(f);
   const sourceFiles = allFiles.filter(f => {
     const ext = f.substring(f.lastIndexOf('.'));
-    return sourceExts.has(ext);
+    // Skip test files — they contain import strings as test fixtures, not real imports
+    return sourceExts.has(ext) && !isTestFile(f);
   });
 
   const importedPackages = new Set<string>();

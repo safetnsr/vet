@@ -65,6 +65,37 @@ export function walkFiles(dir: string, ignore: string[] = []): string[] {
   return results;
 }
 
+/** Check if a file is binary by sampling first 512 bytes for null bytes */
+export function isTextFile(filePath: string): boolean {
+  try {
+    const buf = readFileSync(filePath);
+    const sampleSize = Math.min(512, buf.length);
+    for (let i = 0; i < sampleSize; i++) {
+      if (buf[i] === 0) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Recursively collect all file paths under a directory */
+export function collectDirFiles(dir: string): string[] {
+  const files: string[] = [];
+  try {
+    const entries = readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = join(dir, entry.name);
+      if (entry.isFile()) {
+        files.push(full);
+      } else if (entry.isDirectory()) {
+        files.push(...collectDirFiles(full));
+      }
+    }
+  } catch { /* skip */ }
+  return files;
+}
+
 export function matchesAny(file: string, patterns: string[]): boolean {
   return patterns.some(p => {
     if (p.endsWith('/')) return file.startsWith(p) || file.includes('/' + p);
