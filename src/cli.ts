@@ -9,6 +9,7 @@ import { checkConfig } from './checks/config.js';
 import { checkHistory } from './checks/history.js';
 import { checkScan } from './checks/scan.js';
 import { checkSecrets } from './checks/secrets.js';
+import { checkOwasp } from './checks/owasp.js';
 import { checkDeps } from './checks/deps.js';
 import { checkDebt } from './checks/debt.js';
 import { checkIntegrity } from './checks/integrity.js';
@@ -142,12 +143,13 @@ if (isFix) {
 
 async function runChecks(): Promise<ReturnType<typeof score>> {
   // Run all checks, grouped into categories
-  // Security: scan, secrets, config, models
-  const [scanResult, secretsResult, configResult, modelsResult] = await Promise.all([
+  // Security: scan, secrets, config, models, owasp
+  const [scanResult, secretsResult, configResult, modelsResult, owaspResult] = await Promise.all([
     Promise.resolve(checkScan(cwd)),
     checkSecrets(cwd),
     Promise.resolve(checkConfig(cwd, ignore)),
     checkModels(cwd, ignore),
+    Promise.resolve(checkOwasp(cwd)),
   ]);
 
   // Integrity: diff, integrity checks
@@ -168,7 +170,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
   const receiptResult = await checkReceipt(cwd);
 
   return score(cwd, {
-    security: [scanResult, secretsResult, configResult, modelsResult],
+    security: [scanResult, secretsResult, configResult, modelsResult, owaspResult],
     integrity: [diffResult, integrityResult, receiptResult],
     debt: [readyResult, historyResult, debtResult],
     deps: [depsResult],
