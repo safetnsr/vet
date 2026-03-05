@@ -15,6 +15,7 @@ import { checkDebt } from './checks/debt.js';
 import { checkIntegrity } from './checks/integrity.js';
 import { checkReceipt, runReceiptCommand } from './checks/receipt.js';
 import { checkMemory } from './checks/memory.js';
+import { checkVerify } from './checks/verify.js';
 import { checkMap, renderMapReport } from './checks/map.js';
 import { score } from './scorer.js';
 import { toGrade } from './categories.js';
@@ -185,9 +186,12 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
   // Memory: stale facts in agent memory files
   const memoryResult = checkMemory(cwd);
 
+  // Verify: agent claim validation
+  const verifyResult = checkVerify(cwd, since);
+
   return score(cwd, {
     security: [scanResult, secretsResult, configResult, modelsResult, owaspResult],
-    integrity: [diffResult, integrityResult, receiptResult, memoryResult],
+    integrity: [diffResult, integrityResult, receiptResult, memoryResult, verifyResult],
     debt: [readyResult, historyResult, debtResult],
     deps: [depsResult],
   });
