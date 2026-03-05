@@ -1,6 +1,6 @@
 # vet
 
-vet your AI-generated code. one command, eight checks, zero config.
+vet your AI-generated code. one command, nine checks, zero config.
 
 ```bash
 npx @safetnsr/vet
@@ -20,6 +20,7 @@ works with Claude Code, Cursor, Copilot, Codex, Aider, Windsurf, Cline — anyth
 | **scan** | malicious patterns in agent configs? | scans .claude/, .cursorrules, CLAUDE.md, .mcp/ for prompt injection, shell injection, exfiltration endpoints |
 | **secrets** | leaked secrets in build output? | scans dist/, build/, .next/ + .env files for API keys, tokens, connection strings using pattern + entropy analysis |
 | **receipt** | what did the last agent session do? | parses ~/.claude/projects/ JSONL session logs — files changed, commands run, packages installed, SHA256 integrity hash |
+| **debt** | AI-generated technical debt (duplicates, orphans, wrappers) | detects near-duplicate functions, orphaned exports, wrapper pass-throughs, naming drift |
 
 ## usage
 
