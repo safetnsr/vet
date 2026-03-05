@@ -14,6 +14,7 @@ import { checkDeps } from './checks/deps.js';
 import { checkDebt } from './checks/debt.js';
 import { checkIntegrity } from './checks/integrity.js';
 import { checkReceipt, runReceiptCommand } from './checks/receipt.js';
+import { checkMap, renderMapReport } from './checks/map.js';
 import { score } from './scorer.js';
 import { toGrade } from './categories.js';
 import { reportPretty, reportJSON, reportBadge } from './reporter.js';
@@ -49,6 +50,7 @@ if (flags.has('--help') || flags.has('-h')) {
     npx @safetnsr/vet --watch            live monitoring during AI sessions
     npx @safetnsr/vet init               generate configs + hooks
     npx @safetnsr/vet receipt            show last agent session receipt
+    npx @safetnsr/vet map [dir]          show agent visibility map
 
   ${c.dim}categories:${c.reset}
     security   (30%)  scan, secrets, config, model usage
@@ -84,7 +86,7 @@ if (flags.has('--version') || flags.has('-v')) {
   process.exit(0);
 }
 
-const COMMANDS = ['init', 'receipt'];
+const COMMANDS = ['init', 'receipt', 'map'];
 const command = COMMANDS.includes(positional[0]) ? positional[0] : undefined;
 const cwd = resolve(positional.find(p => !COMMANDS.includes(p)) || '.');
 const isCI = flags.has('--ci');
@@ -113,6 +115,16 @@ if (command === 'init') {
 if (command === 'receipt') {
   const format = isJSON ? 'json' : 'ascii';
   await runReceiptCommand(format);
+  process.exit(0);
+}
+
+if (command === 'map') {
+  const result = await checkMap(cwd);
+  if (isJSON) {
+    console.log(renderMapReport(result, true));
+  } else {
+    console.log(renderMapReport(result, false));
+  }
   process.exit(0);
 }
 
