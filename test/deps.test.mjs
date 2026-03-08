@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { levenshtein, extractImports, extractPackageName, isBuiltin, checkDeps } from '../src/checks/deps.js';
+import { levenshtein, extractImports, extractPackageName, isBuiltin, checkDeps, detectWorkspacePackages, detectProvidedDeps } from '../src/checks/deps.js';
 
 // ── Levenshtein ──────────────────────────────────────────────────────────────
 
@@ -345,5 +345,122 @@ describe('checkDeps integration', () => {
     const phantom = result.issues.filter(i => i.message.includes('phantom import'));
     assert.strictEqual(phantom.length, 0, 'builtins should not be flagged');
     rmSync(dir, { recursive: true });
+  });
+});
+
+// ── Workspace package detection ──────────────────────────────────────────────
+
+describe('detectWorkspacePackages', () => {
+  test('detects packages from package.json workspaces array', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vet-ws-'));
+    try {
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({
+        name: 'monorepo',
+        workspaces: ['packages/*']
+      }));
+      mkdirSync(join(dir, 'packages', 'core'), { recursive: true });
+      writeFileSync(join(dir, 'packages', 'core', 'package.json'), JSON.stringify({ name: '@myorg/core' }));
+      mkdirSync(join(dir, 'packages', 'utils'), { recursive: true });
+      writeFileSync(join(dir, 'packages', 'utils', 'package.json'), JSON.stringify({ name: '@myorg/utils' }));
+      const ws = detectWorkspacePackages(dir);
+      assert.ok(ws.has('@myorg/core'));
+      assert.ok(ws.has('@myorg/utils'));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('workspace packages not flagged as phantom imports', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vet-ws-phantom-'));
+    try {
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({
+        name: 'monorepo',
+        workspaces: ['packages/*'],
+        dependencies: { express: '^4.0.0' }
+      }));
+      mkdirSync(join(dir, 'packages', 'ai'), { recursive: true });
+      writeFileSync(join(dir, 'packages', 'ai', 'package.json'), JSON.stringify({ name: 'ai' }));
+      mkdirSync(join(dir, 'src'), { recursive: true });
+      writeFileSync(join(dir, 'src', 'index.ts'), "import 'ai';\nimport 'express';\n");
+      const result = await checkDeps(dir);
+      const phantom = result.issues.filter(i => i.message.includes('phantom import') && i.message.includes('"ai"'));
+      assert.strictEqual(phantom.length, 0, 'workspace package "ai" should not be flagged as phantom');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('returns empty set for non-workspace project', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vet-ws-none-'));
+    try {
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'simple' }));
+      const ws = detectWorkspacePackages(dir);
+      assert.strictEqual(ws.size, 0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ── Plugin host-provided deps ────────────────────────────────────────────────
+
+describe('detectProvidedDeps', () => {
+  test('detects obsidian plugin deps', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vet-obsidian-'));
+    try {
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({
+        devDependencies: { obsidian: '^1.0.0' }
+      }));
+      const provided = detectProvidedDeps(dir);
+      assert.ok(provided.has('obsidian'));
+      assert.ok(provided.has('electron'));
+      assert.ok(provided.has('@codemirror/*'));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('detects vscode extension deps', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vet-vscode-'));
+    try {
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({
+        engines: { vscode: '^1.80.0' },
+        dependencies: {}
+      }));
+      const provided = detectProvidedDeps(dir);
+      assert.ok(provided.has('vscode'));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('detects electron app deps', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vet-electron-'));
+    try {
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({
+        devDependencies: { electron: '^28.0.0' }
+      }));
+      const provided = detectProvidedDeps(dir);
+      assert.ok(provided.has('electron'));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('obsidian plugin: @codemirror imports not flagged as phantom', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vet-obsidian-phantom-'));
+    try {
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({
+        devDependencies: { obsidian: '^1.0.0', typescript: '^5.0.0' }
+      }));
+      mkdirSync(join(dir, 'src'), { recursive: true });
+      writeFileSync(join(dir, 'src', 'main.ts'), "import { Plugin } from 'obsidian';\nimport { EditorView } from '@codemirror/view';\n");
+      const result = await checkDeps(dir);
+      const phantom = result.issues.filter(i => i.message.includes('phantom import'));
+      const codemirrorPhantom = phantom.filter(i => i.message.includes('@codemirror'));
+      assert.strictEqual(codemirrorPhantom.length, 0, '@codemirror imports should not be phantom in obsidian plugin');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

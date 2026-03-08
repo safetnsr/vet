@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { walkFiles, readFile } from '../util.js';
 import type { CheckResult, Issue } from '../types.js';
 
@@ -168,6 +168,137 @@ async function checkRegistry(packages: string[]): Promise<Map<string, boolean>> 
   return results;
 }
 
+// ── Workspace detection ──────────────────────────────────────────────────────
+
+export function detectWorkspacePackages(cwd: string): Set<string> {
+  const names = new Set<string>();
+
+  // Detect workspace globs from package.json, pnpm-workspace.yaml, lerna.json
+  const globs: string[] = [];
+
+  try {
+    const pkgRaw = readFile(join(cwd, 'package.json'));
+    if (pkgRaw) {
+      const pkg = JSON.parse(pkgRaw);
+      if (Array.isArray(pkg.workspaces)) {
+        globs.push(...pkg.workspaces);
+      } else if (pkg.workspaces?.packages) {
+        globs.push(...pkg.workspaces.packages);
+      }
+    }
+  } catch { /* skip */ }
+
+  try {
+    const pnpmWs = readFile(join(cwd, 'pnpm-workspace.yaml'));
+    if (pnpmWs) {
+      // Simple YAML parse: extract lines like "  - 'packages/*'"
+      const matches = pnpmWs.matchAll(/['"]?([^'":\n]+\*[^'":\n]*)['"]?/g);
+      for (const m of matches) globs.push(m[1].trim());
+    }
+  } catch { /* skip */ }
+
+  try {
+    const lernaRaw = readFile(join(cwd, 'lerna.json'));
+    if (lernaRaw) {
+      const lerna = JSON.parse(lernaRaw);
+      if (Array.isArray(lerna.packages)) globs.push(...lerna.packages);
+    }
+  } catch { /* skip */ }
+
+  // Resolve globs to workspace package.json files
+  for (const glob of globs) {
+    // Handle simple globs like "packages/*"
+    const parts = glob.replace(/\/$/, '').split('/');
+    const starIdx = parts.indexOf('*');
+    if (starIdx === -1) {
+      // Exact directory
+      try {
+        const pkgPath = join(cwd, glob, 'package.json');
+        const raw = readFile(pkgPath);
+        if (raw) {
+          const pkg = JSON.parse(raw);
+          if (pkg.name) names.add(pkg.name);
+        }
+      } catch { /* skip */ }
+    } else {
+      // Wildcard — list directory at the non-wildcard prefix
+      const prefix = parts.slice(0, starIdx).join('/');
+      const prefixDir = join(cwd, prefix);
+      try {
+        if (existsSync(prefixDir) && statSync(prefixDir).isDirectory()) {
+          for (const entry of readdirSync(prefixDir)) {
+            const entryDir = join(prefixDir, entry);
+            try {
+              if (!statSync(entryDir).isDirectory()) continue;
+              // If there are more parts after *, recurse
+              const suffix = parts.slice(starIdx + 1);
+              const pkgDir = suffix.length > 0 ? join(entryDir, ...suffix) : entryDir;
+              const pkgPath = join(pkgDir, 'package.json');
+              const raw = readFile(pkgPath);
+              if (raw) {
+                const pkg = JSON.parse(raw);
+                if (pkg.name) names.add(pkg.name);
+              }
+            } catch { /* skip */ }
+          }
+        }
+      } catch { /* skip */ }
+    }
+  }
+
+  return names;
+}
+
+// ── Plugin host-provided deps ────────────────────────────────────────────────
+
+export function detectProvidedDeps(cwd: string): Set<string> {
+  const provided = new Set<string>();
+
+  try {
+    const pkgRaw = readFile(join(cwd, 'package.json'));
+    if (!pkgRaw) return provided;
+    const pkg = JSON.parse(pkgRaw);
+    const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
+
+    // Obsidian plugin
+    const hasObsidian = 'obsidian' in (allDeps || {});
+    const manifestPath = join(cwd, 'manifest.json');
+    let hasManifestId = false;
+    try {
+      const manifestRaw = readFile(manifestPath);
+      if (manifestRaw) {
+        const manifest = JSON.parse(manifestRaw);
+        if (manifest.id) hasManifestId = true;
+      }
+    } catch { /* skip */ }
+    if (hasObsidian || hasManifestId) {
+      provided.add('obsidian');
+      provided.add('electron');
+      // @codemirror/* is handled by prefix check below
+      provided.add('@codemirror/*');
+    }
+
+    // VSCode extension
+    if (pkg.engines?.vscode) {
+      provided.add('vscode');
+    }
+
+    // Electron app
+    if (allDeps?.electron) {
+      provided.add('electron');
+    }
+  } catch { /* skip */ }
+
+  return provided;
+}
+
+function isProvidedPackage(pkg: string, provided: Set<string>): boolean {
+  if (provided.has(pkg)) return true;
+  // Handle @codemirror/* wildcard
+  if (provided.has('@codemirror/*') && pkg.startsWith('@codemirror/')) return true;
+  return false;
+}
+
 // ── Main check ───────────────────────────────────────────────────────────────
 
 export async function checkDeps(cwd: string): Promise<CheckResult> {
@@ -287,9 +418,17 @@ export async function checkDeps(cwd: string): Promise<CheckResult> {
     }
   }
 
+  // Detect workspace packages and host-provided deps
+  const workspacePackages = detectWorkspacePackages(cwd);
+  const providedDeps = detectProvidedDeps(cwd);
+
   // Phantom imports: imported but not declared
   for (const pkg of importedPackages) {
     if (!declaredSet.has(pkg)) {
+      // Skip workspace packages
+      if (workspacePackages.has(pkg)) continue;
+      // Skip host-provided deps
+      if (isProvidedPackage(pkg, providedDeps)) continue;
       issues.push({
         severity: 'warning',
         message: `phantom import: "${pkg}" is imported but not in package.json`,

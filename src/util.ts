@@ -42,26 +42,49 @@ export function fileExists(path: string): boolean {
   return existsSync(path);
 }
 
-export function walkFiles(dir: string, ignore: string[] = []): string[] {
+export function walkFiles(dir: string, ignore: string[] = [], maxFiles?: number): string[] {
   const results: string[] = [];
   const defaultIgnore = ['node_modules', '.git', 'dist', 'build', '.next', 'coverage', 'vendor', '__pycache__', '.venv', 'venv'];
   const allIgnore = [...defaultIgnore, ...ignore];
+  let stopped = false;
 
   function walk(d: string) {
+    if (stopped) return;
     let entries;
     try { entries = readdirSync(d); } catch { return; }
     for (const entry of entries) {
+      if (stopped) return;
       if (allIgnore.includes(entry)) continue;
       const full = join(d, entry);
       try {
         const stat = statSync(full);
         if (stat.isDirectory()) walk(full);
-        else results.push(relative(dir, full));
+        else {
+          results.push(relative(dir, full));
+          if (maxFiles && results.length >= maxFiles) { stopped = true; return; }
+        }
       } catch { /* skip */ }
     }
   }
   walk(dir);
+
+  // When limited, prioritize src/ files over examples/docs/test
+  if (maxFiles && stopped) {
+    results.sort((a, b) => {
+      const aP = priorityBucket(a);
+      const bP = priorityBucket(b);
+      if (aP !== bP) return aP - bP;
+      return a.localeCompare(b);
+    });
+  }
   return results;
+}
+
+function priorityBucket(file: string): number {
+  if (file.startsWith('src/') || file.startsWith('lib/') || file.startsWith('app/')) return 0;
+  if (file.startsWith('test/') || file.startsWith('tests/') || file.startsWith('__tests__/')) return 2;
+  if (file.startsWith('examples/') || file.startsWith('docs/') || file.startsWith('example/')) return 3;
+  return 1;
 }
 
 /** Check if a file is binary by sampling first 512 bytes for null bytes */

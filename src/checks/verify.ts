@@ -49,6 +49,18 @@ function isConfigOrMetaFile(filePath: string): boolean {
   const ext = extname(filePath).toLowerCase();
   const normalized = filePath.replace(/\\/g, '/');
 
+  // All .d.ts declaration files
+  if (filePath.endsWith('.d.ts')) return true;
+
+  // *.config.* pattern (vite.config.ts, postcss.config.js, tailwind.config.ts, etc.)
+  if (/\.config\.[a-z]+$/i.test(base)) return true;
+
+  // *.rc.* or dotfile rc pattern (.eslintrc.js, .prettierrc.cjs, etc.)
+  if (/\.rc\.[a-z]+$/i.test(base) || /^\.[a-z]+rc$/i.test(base) || /^\.[a-z]+rc\.[a-z]+$/i.test(base)) return true;
+
+  // tsconfig variants (tsconfig.json, tsconfig.build.json, etc.)
+  if (/^tsconfig(\..+)?\.json$/i.test(base)) return true;
+
   // Dotfiles
   if (CONFIG_DOTFILES.has(base)) return true;
 
@@ -330,6 +342,13 @@ export function checkVerify(cwd: string, since?: string): CheckResult {
       verified++;
       continue;
     }
+    // Skip barrel index files (index.ts/js/tsx/jsx under 15 lines)
+    const indexNames = new Set(['index.ts', 'index.js', 'index.tsx', 'index.jsx']);
+    if (indexNames.has(basename(relPath)) && lineCount < 15) {
+      verified++;
+      continue;
+    }
+
     if (lineCount < 10 && lineCount > 0) {
       issues.push({
         severity: 'warning',

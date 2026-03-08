@@ -2,6 +2,7 @@ import { join, resolve } from 'node:path';
 import { existsSync, readdirSync, statSync, readFileSync } from 'node:fs';
 import type { CheckResult, Issue } from '../types.js';
 import { readFile } from '../util.js';
+import { detectWorkspacePackages } from './deps.js';
 
 // ── Memory file targets ──────────────────────────────────────────────────────
 
@@ -172,6 +173,10 @@ export function checkMemory(cwd: string): CheckResult {
       }
     } catch { /* skip */ }
   }
+
+  // Include workspace package names
+  const workspacePackages = detectWorkspacePackages(cwd);
+  for (const name of workspacePackages) allDeps.add(name);
 
   // Collect all tool mentions across files for contradiction detection
   const globalToolMentions = new Map<string, { tool: string; file: string; line: number }[]>();

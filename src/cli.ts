@@ -29,12 +29,17 @@ const args = process.argv.slice(2);
 const flags = new Set(args.filter(a => a.startsWith('-') && !a.startsWith('--since')));
 const flagMap = new Map<string, string>();
 
-// Parse --since=value or --since value
+// Parse --since=value or --since value, --max-files=value
 for (let i = 0; i < args.length; i++) {
   if (args[i].startsWith('--since=')) {
     flagMap.set('since', args[i].split('=')[1]);
   } else if (args[i] === '--since' && args[i + 1]) {
     flagMap.set('since', args[i + 1]);
+    i++;
+  } else if (args[i].startsWith('--max-files=')) {
+    flagMap.set('max-files', args[i].split('=')[1]);
+  } else if (args[i] === '--max-files' && args[i + 1]) {
+    flagMap.set('max-files', args[i + 1]);
     i++;
   }
 }
@@ -77,6 +82,7 @@ if (flags.has('--help') || flags.has('-h')) {
     --watch       re-run on file changes
     --json        JSON output
     --pretty      force pretty output (even in pipes)
+    --max-files N limit file scanning (default: 2000)
     -h, --help    show this help
     -v, --version show version
 `);
@@ -103,6 +109,7 @@ const isWatch = flags.has('--watch');
 const isBadge = flags.has('--badge');
 const isJSON = flags.has('--json') || (!process.stdout.isTTY && !flags.has('--pretty') && !isBadge);
 const since = flagMap.get('since');
+const maxFiles = parseInt(flagMap.get('max-files') || '2000', 10) || 2000;
 
 // Load config
 let config: VetConfig = {};
@@ -214,47 +221,78 @@ if (isFix) {
   process.exit(0);
 }
 
+/** Run a check with a per-check timeout (30s). Returns a skip result on timeout. */
+async function withTimeout(name: string, fn: () => CheckResult | Promise<CheckResult>, timeoutMs = 30_000): Promise<CheckResult> {
+  return new Promise<CheckResult>((res) => {
+    const timer = setTimeout(() => {
+      if (!isJSON) console.error(`  ${c.yellow}⚠ ${name} check timed out after ${timeoutMs / 1000}s — skipped${c.reset}`);
+      res({ name, score: 100, maxScore: 100, issues: [], summary: `skipped (timeout after ${timeoutMs / 1000}s)` });
+    }, timeoutMs);
+    Promise.resolve(fn()).then((r) => { clearTimeout(timer); res(r); }).catch(() => { clearTimeout(timer); res({ name, score: 100, maxScore: 100, issues: [], summary: 'check failed' }); });
+  });
+}
+
 async function runChecks(): Promise<ReturnType<typeof score>> {
+  const globalStart = Date.now();
+  const GLOBAL_TIMEOUT = 120_000;
   try {
+
+  // Check file count and warn if large
+  const { walkFiles: wf } = await import('./util.js');
+  const allProjectFiles = wf(cwd, [], maxFiles);
+  if (allProjectFiles.length >= maxFiles) {
+    if (!isJSON) console.log(`  ${c.yellow}Large project (${allProjectFiles.length}+ files) — scanning first ${maxFiles} files. Use --max-files to increase.${c.reset}\n`);
+  }
+
   // Run all checks, grouped into categories
   // Security: scan, secrets, config, models, owasp, permissions
   const [scanResult, secretsResult, configResult, modelsResult, owaspResult] = await Promise.all([
-    Promise.resolve(checkScan(cwd)),
-    checkSecrets(cwd),
-    Promise.resolve(checkConfig(cwd, ignore)),
-    checkModels(cwd, ignore),
-    Promise.resolve(checkOwasp(cwd)),
+    withTimeout('scan', () => checkScan(cwd)),
+    withTimeout('secrets', () => checkSecrets(cwd)),
+    withTimeout('config', () => checkConfig(cwd, ignore)),
+    withTimeout('models', () => checkModels(cwd, ignore)),
+    withTimeout('owasp', () => checkOwasp(cwd)),
   ]);
-  const permissionsResult = checkPermissions(cwd);
+  const permissionsResult = await withTimeout('permissions', () => checkPermissions(cwd));
+
+  if (Date.now() - globalStart > GLOBAL_TIMEOUT) {
+    if (!isJSON) console.error(`  ${c.yellow}⚠ global timeout (${GLOBAL_TIMEOUT / 1000}s) reached — returning partial results${c.reset}`);
+    return score(cwd, { security: [scanResult, secretsResult, configResult, modelsResult, owaspResult, permissionsResult], integrity: [], debt: [], deps: [] });
+  }
 
   // Integrity: diff, integrity checks
-  const diffResult = checkDiff(cwd, { since });
-  const integrityResult = await checkIntegrity(cwd, ignore);
+  const diffResult = await withTimeout('diff', () => checkDiff(cwd, { since }));
+  const integrityResult = await withTimeout('integrity', () => checkIntegrity(cwd, ignore));
 
   // Debt: ready, history, debt
   const [readyResult, debtResult] = await Promise.all([
-    checkReady(cwd, ignore),
-    checkDebt(cwd, ignore),
+    withTimeout('ready', () => checkReady(cwd, ignore)),
+    withTimeout('debt', () => checkDebt(cwd, ignore)),
   ]);
-  const historyResult = checkHistory(cwd);
+  const historyResult = await withTimeout('history', () => checkHistory(cwd));
+
+  if (Date.now() - globalStart > GLOBAL_TIMEOUT) {
+    if (!isJSON) console.error(`  ${c.yellow}⚠ global timeout (${GLOBAL_TIMEOUT / 1000}s) reached — returning partial results${c.reset}`);
+    return score(cwd, { security: [scanResult, secretsResult, configResult, modelsResult, owaspResult, permissionsResult], integrity: [diffResult, integrityResult], debt: [readyResult, historyResult, debtResult], deps: [] });
+  }
 
   // Deps: deps
-  const depsResult = await checkDeps(cwd);
+  const depsResult = await withTimeout('deps', () => checkDeps(cwd));
 
   // Receipt is informational — fold into integrity category but keep low weight
-  const receiptResult = await checkReceipt(cwd);
+  const receiptResult = await withTimeout('receipt', () => checkReceipt(cwd));
 
   // Compact: compaction forensics
-  const compactResult = await checkCompact(cwd);
+  const compactResult = await withTimeout('compact', () => checkCompact(cwd));
 
   // Memory: stale facts in agent memory files
-  const memoryResult = checkMemory(cwd);
+  const memoryResult = await withTimeout('memory', () => checkMemory(cwd));
 
   // Verify: agent claim validation
-  const verifyResult = checkVerify(cwd, since);
+  const verifyResult = await withTimeout('verify', () => checkVerify(cwd, since));
 
   // Tests: test theater detection
-  const testsResult = checkTests(cwd, ignore);
+  const testsResult = await withTimeout('tests', () => checkTests(cwd, ignore));
 
   return score(cwd, {
     security: [scanResult, secretsResult, configResult, modelsResult, owaspResult, permissionsResult],

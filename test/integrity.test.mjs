@@ -392,3 +392,47 @@ async function other() {
     cleanup(dir);
   });
 });
+
+// ── .d.ts files should not be checked for hallucinated imports ───────────
+describe('hallucinated imports: .d.ts and build artifacts', () => {
+  test('.d.ts files are skipped for hallucinated import checks', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vet-dts-'));
+    try {
+      mkdirSync(join(dir, '.git'));
+      writeFileSync(join(dir, 'types.d.ts'), "import { Foo } from './dist/types';\nexport type Bar = Foo;\n");
+      const result = await checkIntegrity(dir, []);
+      const hallucinated = result.issues.filter(i => i.message.includes('hallucinated'));
+      assert.strictEqual(hallucinated.length, 0, '.d.ts files should not produce hallucinated import issues');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('build artifact imports (./dist/) are skipped', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vet-dist-'));
+    try {
+      mkdirSync(join(dir, '.git'));
+      mkdirSync(join(dir, 'src'), { recursive: true });
+      writeFileSync(join(dir, 'src', 'index.ts'), "import { helper } from './dist/helper';\n");
+      const result = await checkIntegrity(dir, []);
+      const hallucinated = result.issues.filter(i => i.message.includes('hallucinated') && i.message.includes('dist'));
+      assert.strictEqual(hallucinated.length, 0, './dist/ imports should not be flagged as hallucinated');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('build artifact imports (../build/) are skipped', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vet-build-'));
+    try {
+      mkdirSync(join(dir, '.git'));
+      mkdirSync(join(dir, 'src', 'sub'), { recursive: true });
+      writeFileSync(join(dir, 'src', 'sub', 'index.ts'), "import { foo } from '../build/foo';\n");
+      const result = await checkIntegrity(dir, []);
+      const hallucinated = result.issues.filter(i => i.message.includes('hallucinated') && i.message.includes('build'));
+      assert.strictEqual(hallucinated.length, 0, '../build/ imports should not be flagged as hallucinated');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

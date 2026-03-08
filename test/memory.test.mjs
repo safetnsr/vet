@@ -279,3 +279,41 @@ test('checkMemory: score floors at 0', () => {
     rmSync(dir, { recursive: true });
   }
 });
+
+// ── Workspace packages not flagged as stale ──────────────────────────────
+test('checkMemory: workspace packages in CLAUDE.md not flagged as stale', () => {
+  const dir = mkdtempSync(join(osTmpdir(), 'vet-mem-ws-'));
+  try {
+    // Setup monorepo with workspace
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({
+      name: 'monorepo',
+      workspaces: ['packages/*'],
+      dependencies: { express: '^4.0.0' }
+    }));
+    mkdirSync(join(dir, 'packages', 'provider'), { recursive: true });
+    writeFileSync(join(dir, 'packages', 'provider', 'package.json'), JSON.stringify({ name: '@ai-sdk/provider' }));
+    // CLAUDE.md references workspace package
+    writeFileSync(join(dir, 'CLAUDE.md'), '# Project\nUses @ai-sdk/provider for type definitions.\n');
+    const result = checkMemory(dir);
+    const stale = result.issues.filter(i => i.message.includes('@ai-sdk/provider') && i.message.includes('Stale'));
+    assert.equal(stale.length, 0, 'workspace package should not be flagged as stale');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('checkMemory: non-workspace scoped packages still flagged as stale', () => {
+  const dir = mkdtempSync(join(osTmpdir(), 'vet-mem-stale-'));
+  try {
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({
+      name: 'simple',
+      dependencies: { express: '^4.0.0' }
+    }));
+    writeFileSync(join(dir, 'CLAUDE.md'), '# Project\nUses @nonexistent/package for something.\n');
+    const result = checkMemory(dir);
+    const stale = result.issues.filter(i => i.message.includes('@nonexistent/package') && i.message.includes('Stale'));
+    assert.ok(stale.length > 0, 'non-workspace scoped package should be flagged as stale');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

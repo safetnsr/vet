@@ -106,6 +106,10 @@ function extractRelativeImports(source: string): { path: string; line: number }[
   return imports;
 }
 
+function isBuildArtifactImport(importPath: string): boolean {
+  return /(?:^|\/)(?:dist|build)\//.test(importPath);
+}
+
 function checkHallucinatedImports(cwd: string, files: string[]): Issue[] {
   const issues: Issue[] = [];
   const sourceExts = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs', '.cts', '.cjs']);
@@ -115,11 +119,16 @@ function checkHallucinatedImports(cwd: string, files: string[]): Issue[] {
     if (!sourceExts.has(ext)) continue;
     if (file.includes('node_modules')) continue;
 
+    // Skip .d.ts declaration files — they reference build outputs
+    if (file.endsWith('.d.ts')) continue;
+
     const content = readFile(join(cwd, file));
     if (!content) continue;
 
     const relImports = extractRelativeImports(content);
     for (const imp of relImports) {
+      // Skip build artifact imports (./dist/..., ../build/...)
+      if (isBuildArtifactImport(imp.path)) continue;
       // Skip .js extensions pointing to .ts files (common in ESM TypeScript)
       // The resolver already handles this
       if (!resolveRelativeImport(imp.path, file, cwd)) {

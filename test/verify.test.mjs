@@ -773,3 +773,91 @@ test('checkVerify: score is always between 0 and 100', async () => {
     rmSync(dir, { recursive: true });
   }
 });
+
+// ── Config files never flagged as thin ───────────────────────────────────
+test('checkVerify: .prettierrc.js not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, '.prettierrc.js'), 'module.exports = { semi: true };\n');
+    gitCommit(dir, 'add prettierrc');
+    const result = checkVerify(dir);
+    const thin = result.issues.filter(i => i.message.includes('Thin') && i.message.includes('.prettierrc'));
+    assert.equal(thin.length, 0, '.prettierrc.js should not be flagged as thin');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('checkVerify: vite.config.ts not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'vite.config.ts'), "import { defineConfig } from 'vite';\nexport default defineConfig({});\n");
+    gitCommit(dir, 'add vite config');
+    const result = checkVerify(dir);
+    const thin = result.issues.filter(i => i.message.includes('Thin') && i.message.includes('vite.config'));
+    assert.equal(thin.length, 0, 'vite.config.ts should not be flagged as thin');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('checkVerify: next-env.d.ts not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'next-env.d.ts'), '/// <reference types="next" />\n');
+    gitCommit(dir, 'add next-env.d.ts');
+    const result = checkVerify(dir);
+    const thin = result.issues.filter(i => i.message.includes('Thin') && i.message.includes('next-env'));
+    assert.equal(thin.length, 0, 'next-env.d.ts should not be flagged as thin');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('checkVerify: tailwind.config.ts not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'tailwind.config.ts'), "export default { content: ['./src/**/*.tsx'] };\n");
+    gitCommit(dir, 'add tailwind config');
+    const result = checkVerify(dir);
+    const thin = result.issues.filter(i => i.message.includes('Thin') && i.message.includes('tailwind.config'));
+    assert.equal(thin.length, 0, 'tailwind.config.ts should not be flagged as thin');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ── Barrel index files not flagged as thin ───────────────────────────────
+test('checkVerify: barrel index.ts not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    mkdirSync(join(dir, 'src', 'utils'), { recursive: true });
+    writeFileSync(join(dir, 'src', 'utils', 'index.ts'), "export * from './foo';\nexport { Bar } from './baz';\n");
+    gitCommit(dir, 'add barrel index');
+    const result = checkVerify(dir);
+    const thin = result.issues.filter(i => i.message.includes('Thin') && i.message.includes('index.ts'));
+    assert.equal(thin.length, 0, 'barrel index.ts should not be flagged as thin');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('checkVerify: barrel index.jsx under 15 lines not flagged', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    mkdirSync(join(dir, 'src', 'components'), { recursive: true });
+    writeFileSync(join(dir, 'src', 'components', 'index.jsx'), "export { Button } from './Button';\nexport { Card } from './Card';\nexport { Modal } from './Modal';\n");
+    gitCommit(dir, 'add barrel index.jsx');
+    const result = checkVerify(dir);
+    const thin = result.issues.filter(i => i.message.includes('Thin') && i.message.includes('index.jsx'));
+    assert.equal(thin.length, 0, 'barrel index.jsx should not be flagged as thin');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
