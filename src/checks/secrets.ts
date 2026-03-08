@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { execSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import type { CheckResult, Issue } from '../types.js';
+import { collectDirFiles } from '../util.js';
 
 // ── Shannon entropy ──────────────────────────────────────────────────────────
 
@@ -141,22 +142,7 @@ function detectBuildDir(cwd: string): string | null {
   return null;
 }
 
-function walkBuild(dir: string): string[] {
-  const results: string[] = [];
-  try {
-    const entries = readdirSync(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (entry.name === 'node_modules') continue;
-        results.push(...walkBuild(full));
-      } else {
-        results.push(full);
-      }
-    }
-  } catch { /* skip */ }
-  return results;
-}
+
 
 function shouldScan(filePath: string): boolean {
   const ext = extname(filePath).toLowerCase();
@@ -237,7 +223,7 @@ export async function checkSecrets(cwd: string): Promise<CheckResult> {
   // 1. Build output scan
   const buildDir = detectBuildDir(cwd);
   if (buildDir) {
-    const buildFiles = walkBuild(buildDir).filter(f => shouldScan(f));
+    const buildFiles = collectDirFiles(buildDir).filter(f => shouldScan(f));
     for (const file of buildFiles) {
       try {
         const findings = await scanBuildFile(file);

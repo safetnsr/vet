@@ -217,6 +217,15 @@ function findDuplicates(allFuncs: FuncInfo[]): Issue[] {
 
 // ── B) Orphaned exports ──────────────────────────────────────────────────────
 
+function isLibrary(cwd: string): boolean {
+  try {
+    const raw = readFile(join(cwd, 'package.json'));
+    if (!raw) return false;
+    const pkg = JSON.parse(raw);
+    return !!(pkg.main || pkg.exports || pkg.module || pkg.types || pkg.bin);
+  } catch { return false; }
+}
+
 function findOrphanedExports(cwd: string, files: string[]): Issue[] {
   const issues: Issue[] = [];
   const sourceFiles = files.filter(f => isSourceFile(f) && !isTestFile(f));
@@ -268,18 +277,20 @@ function findOrphanedExports(cwd: string, files: string[]): Issue[] {
   }
   const allText = allContent.join('\n');
 
+  const lib = isLibrary(cwd);
+
   for (const exp of exports) {
     // Check if name appears in import statements across all files
     // import { name } from or import { x, name } from or import { name as y }
     const importPattern = new RegExp(`import\\s+[^;]*\\b${exp.name}\\b[^;]*from\\s+`, 'm');
     if (!importPattern.test(allText)) {
       issues.push({
-        severity: 'warning',
-        message: `orphaned export: "${exp.name}" is exported but never imported`,
+        severity: lib ? 'info' : 'warning',
+        message: `orphaned export: "${exp.name}" is exported but never imported${lib ? ' (library detected — exports may be consumed externally)' : ''}`,
         file: exp.file,
         line: exp.line,
         fixable: true,
-        fixHint: 'remove the export keyword or delete the function',
+        fixHint: lib ? 'may be public API — verify if still needed' : 'remove the export keyword or delete the function',
       });
     }
   }
@@ -396,7 +407,7 @@ export async function checkDebt(cwd: string, ignore: string[]): Promise<CheckRes
   issues.push(...driftIssues);
 
   // ── Scoring ──────────────────────────────────────────────────────────────
-  const dupPenalty = Math.min(60, dupIssues.length * 15);
+  const dupPenalty = Math.min(50, dupIssues.length * 8);
   const orphanPenalty = Math.min(30, orphanIssues.length * 5);
   const wrapperPenalty = Math.min(15, wrapperIssues.length * 3);
   const driftPenalty = Math.min(10, driftIssues.length * 2);

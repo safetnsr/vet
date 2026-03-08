@@ -1,6 +1,7 @@
 import { join, resolve } from 'node:path';
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync, readFileSync } from 'node:fs';
 import type { CheckResult, Issue } from '../types.js';
+import { readFile } from '../util.js';
 
 // ── Memory file targets ──────────────────────────────────────────────────────
 
@@ -17,14 +18,6 @@ const TOOL_CATEGORIES: Record<string, RegExp[]> = {
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function safeRead(path: string): string | null {
-  try {
-    return readFileSync(path, 'utf-8');
-  } catch {
-    return null;
-  }
-}
 
 function collectMemoryFiles(cwd: string): string[] {
   const files: string[] = [];
@@ -168,6 +161,8 @@ export function checkMemory(cwd: string): CheckResult {
   if (existsSync(pkgPath)) {
     try {
       const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+      // Include the package's own name
+      if (pkg.name) allDeps.add(pkg.name);
       for (const key of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
         if (pkg[key]) {
           for (const name of Object.keys(pkg[key])) {
@@ -182,7 +177,7 @@ export function checkMemory(cwd: string): CheckResult {
   const globalToolMentions = new Map<string, { tool: string; file: string; line: number }[]>();
 
   for (const filePath of memoryFiles) {
-    const content = safeRead(filePath);
+    const content = readFile(filePath);
     if (!content) continue;
 
     const relPath = filePath.startsWith(cwd) ? filePath.slice(cwd.length + 1) : filePath;

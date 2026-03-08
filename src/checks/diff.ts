@@ -1,5 +1,14 @@
 import type { CheckResult, Issue, DiffOptions } from '../types.js';
-import { git, gitExec } from '../util.js';
+import { git, readFile } from '../util.js';
+import { join } from 'node:path';
+
+function fileHasVetIgnore(cwd: string, filePath: string, checkName: string): boolean {
+  const content = readFile(join(cwd, filePath));
+  if (!content) return false;
+  const lines = content.split('\n').slice(0, 5);
+  const re = new RegExp(`(?://|/\\*|#)\\s*vet-ignore:\\s*${checkName}\\b`);
+  return lines.some(l => re.test(l));
+}
 
 interface Pattern {
   regex: RegExp;
@@ -102,6 +111,7 @@ export function checkDiff(cwd: string, opts: DiffOptions = {}): CheckResult {
 
   // Pattern matching on added lines
   for (const file of files) {
+    if (fileHasVetIgnore(cwd, file.path, 'diff')) continue;
     for (const { num, text } of file.addedLines) {
       for (const pattern of allPatterns) {
         if (pattern.regex.test(text)) {
@@ -139,9 +149,16 @@ export function checkDiff(cwd: string, opts: DiffOptions = {}): CheckResult {
         const names = (nameMatch[1] || nameMatch[2] || '').split(',').map(n => n.trim().split(' as ').pop()?.trim()).filter(Boolean);
         for (const name of names) {
           if (!name || name.length < 2) continue;
-          // Check if name is used in any other added line
-          const usedElsewhere = file.addedLines.some(l => l !== imp && l.text.includes(name));
-          if (!usedElsewhere && file.addedLines.length > 3) {
+          // Check if name is used in any other added line OR in unchanged file content
+          const usedInAdded = file.addedLines.some(l => l !== imp && l.text.includes(name));
+          // Also read the full file to check if name is used in existing (unchanged) code
+          const fullContent = readFile(join(cwd, file.path));
+          const usedInFile = fullContent ? fullContent.split('\n').some((l, idx) => {
+            // Skip the import line itself
+            if (l.trim() === imp.text.trim()) return false;
+            return l.includes(name);
+          }) : false;
+          if (!usedInAdded && !usedInFile && file.addedLines.length > 3) {
             issues.push({
               severity: 'warning',
               message: `[ai] imported "${name}" but never used in new code`,

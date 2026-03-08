@@ -28,6 +28,20 @@ const CONFIG_DIRS = ['.github/', '.husky/', '.vscode/', '.idea/'];
 
 const META_FILES = new Set([
   'FUNDING.yaml', 'CODEOWNERS', 'LICENSE',
+  'py.typed', 'MANIFEST.in', 'CITATION.cff',
+]);
+
+const META_EXTENSIONS = new Set([
+  '.cff', '.mdc', '.txt', '.html', '.md', '.rst', '.csv',
+  '.css', '.scss', '.less', '.map', '.wasm',
+  '.sh', '.bash', '.zsh', '.fish', '.bat', '.cmd', '.ps1',
+  '.sql', '.graphql', '.gql', '.proto',
+]);
+
+/** Source code extensions that should be checked for thin files */
+const SOURCE_CODE_EXTS = new Set([
+  '.ts', '.js', '.tsx', '.jsx', '.mts', '.mjs', '.cts', '.cjs',
+  '.py', '.go', '.rs', '.java', '.rb', '.php', '.cs', '.swift', '.kt',
 ]);
 
 function isConfigOrMetaFile(filePath: string): boolean {
@@ -41,12 +55,18 @@ function isConfigOrMetaFile(filePath: string): boolean {
   // Config extensions
   if (CONFIG_EXTENSIONS.has(ext)) return true;
 
+  // Meta/non-source extensions
+  if (META_EXTENSIONS.has(ext)) return true;
+
   // Config directories
   if (CONFIG_DIRS.some(d => normalized.includes(d) || normalized.startsWith(d))) return true;
 
   // Meta files
   if (META_FILES.has(base)) return true;
   if (base.startsWith('CHANGELOG')) return true;
+
+  // Any file that is NOT source code should not be flagged for thin content
+  if (!SOURCE_CODE_EXTS.has(ext)) return true;
 
   return false;
 }
@@ -142,12 +162,22 @@ function isPythonProject(cwd: string): boolean {
   return markers.some(m => existsSync(join(cwd, m)));
 }
 
+/** Directories where small files are expected (examples, demos, docs) */
+const SMALL_FILE_DIRS = ['examples/', 'example/', 'demos/', 'demo/', 'docs/'];
+
 function isPythonBoilerplate(filePath: string): boolean {
   const base = basename(filePath);
   if (base === '__init__.py') return true;
+  if (base === '__main__.py') return true;
+  if (base === 'py.typed') return true;
   if (filePath.endsWith('.pyi')) return true;
   if (filePath.replace(/\\/g, '/').includes('__pycache__/')) return true;
   return false;
+}
+
+function isInSmallFileDir(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, '/');
+  return SMALL_FILE_DIRS.some(d => normalized.includes(d) || normalized.startsWith(d));
 }
 
 // ── Main check ───────────────────────────────────────────────────────────────
@@ -244,8 +274,13 @@ export function checkVerify(cwd: string, since?: string): CheckResult {
     const lineCount = countLines(content);
 
     // 2. File must have meaningful content (>10 non-empty lines)
-    // Skip thin file check for Python boilerplate files
-    if (python && isPythonBoilerplate(relPath)) {
+    // Skip thin file check for Python boilerplate files (always, regardless of project type)
+    if (isPythonBoilerplate(relPath)) {
+      verified++;
+      continue;
+    }
+    // Skip thin file check for files in examples/docs directories
+    if (isInSmallFileDir(relPath)) {
       verified++;
       continue;
     }

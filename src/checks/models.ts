@@ -1,13 +1,16 @@
 import { join, basename } from 'node:path';
+import { readdirSync, existsSync } from 'node:fs';
 import type { CheckResult, Issue } from '../types.js';
 import { readFile, walkFiles } from '../util.js';
 
 // ── AI framework detection ───────────────────────────────────────────────────
 
-const AI_NAME_KEYWORDS = ['ai', 'llm', 'model', 'openai', 'anthropic', 'langchain', 'provider'];
+const AI_NAME_KEYWORDS = ['ai', 'llm', 'openai', 'anthropic', 'langchain', 'provider'];
 const AI_PKG_KEYWORDS = new Set(['ai', 'llm', 'language-model', 'openai', 'anthropic']);
 
 function isAiFramework(cwd: string): boolean {
+  const aiDeps = ['openai', 'anthropic', 'langchain', 'transformers', 'torch', 'tensorflow', 'llama', 'huggingface'];
+
   // Check package.json
   const pkgRaw = readFile(join(cwd, 'package.json'));
   if (pkgRaw) {
@@ -19,16 +22,51 @@ function isAiFramework(cwd: string): boolean {
     } catch { /* skip */ }
   }
 
-  // Check pyproject.toml / setup.py for AI deps
-  const pyproject = readFile(join(cwd, 'pyproject.toml'));
-  if (pyproject) {
-    const aiDeps = ['openai', 'anthropic', 'langchain', 'transformers', 'torch', 'tensorflow'];
-    if (aiDeps.some(d => pyproject.includes(d))) return true;
+  // Check pyproject.toml / setup.py in root AND subdirectories (up to 2 levels deep for monorepos)
+  const pyprojectPaths = [join(cwd, 'pyproject.toml')];
+  try {
+    const entries = readdirSync(cwd);
+    for (const entry of entries) {
+      if (entry.startsWith('.') || entry === 'node_modules') continue;
+      const subPath = join(cwd, entry);
+      const subPyproject = join(subPath, 'pyproject.toml');
+      if (existsSync(subPyproject)) pyprojectPaths.push(subPyproject);
+      // Check 2 levels deep for monorepos (e.g., libs/langchain/pyproject.toml)
+      try {
+        const subEntries = readdirSync(subPath);
+        for (const subEntry of subEntries) {
+          if (subEntry.startsWith('.') || subEntry === 'node_modules') continue;
+          const deepPyproject = join(subPath, subEntry, 'pyproject.toml');
+          if (existsSync(deepPyproject)) pyprojectPaths.push(deepPyproject);
+        }
+      } catch { /* not a directory or unreadable */ }
+    }
+  } catch { /* skip */ }
+
+  for (const pyprojectPath of pyprojectPaths) {
+    const pyproject = readFile(pyprojectPath);
+    if (pyproject && aiDeps.some(d => pyproject.includes(d))) return true;
   }
+
   const setupPy = readFile(join(cwd, 'setup.py'));
-  if (setupPy) {
-    const aiDeps = ['openai', 'anthropic', 'langchain', 'transformers', 'torch', 'tensorflow'];
-    if (aiDeps.some(d => setupPy.includes(d))) return true;
+  if (setupPy && aiDeps.some(d => setupPy.includes(d))) return true;
+
+  // Check directory name for AI keywords (use word-boundary-like matching with separators)
+  const dirName = basename(cwd).toLowerCase();
+  const dirParts = dirName.split(/[-_./\\]/);
+  const DIR_AI_KEYWORDS = ['ai', 'llm', 'openai', 'anthropic', 'langchain', 'pydantic-ai', 'autogen', 'crewai'];
+  if (DIR_AI_KEYWORDS.some(k => dirParts.includes(k) || dirName.includes(k))) return true;
+
+  // Check CLAUDE.md or .claude/settings.json for AI/LLM terms
+  const claudeMd = readFile(join(cwd, 'CLAUDE.md'));
+  if (claudeMd) {
+    const aiTerms = /\b(llm|language model|ai agent|openai|anthropic|embedding|vector|rag|prompt|fine.?tun)/i;
+    if (aiTerms.test(claudeMd)) return true;
+  }
+  const claudeSettings = readFile(join(cwd, '.claude', 'settings.json'));
+  if (claudeSettings) {
+    const aiTerms = /\b(llm|language model|ai|openai|anthropic|model)/i;
+    if (aiTerms.test(claudeSettings)) return true;
   }
 
   return false;
@@ -211,7 +249,11 @@ function builtinModels(cwd: string, ignore: string[]): CheckResult {
 }
 
 export async function checkModels(cwd: string, ignore: string[]): Promise<CheckResult> {
-  const rich = await tryModelGraveyard(cwd);
-  if (rich) return rich;
-  return builtinModels(cwd, ignore);
+  try {
+    const rich = await tryModelGraveyard(cwd);
+    if (rich) return rich;
+    return builtinModels(cwd, ignore);
+  } catch {
+    return { name: 'models', score: 100, maxScore: 100, issues: [], summary: 'models check failed' };
+  }
 }

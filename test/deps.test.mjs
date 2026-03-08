@@ -75,6 +75,30 @@ describe('extractImports', () => {
     assert.ok(imports.includes('chalk'));
     assert.ok(imports.includes('lodash'));
   });
+
+  test('template literal specifiers like ${top} are filtered out', () => {
+    const source = `
+      import express from 'express';
+      const hint = 'did you mean "\${top}"?';
+      const fixHint = \`run: npm install "\${pkg}"\`;
+    `;
+    const imports = extractImports(source);
+    assert.ok(imports.includes('express'), 'real import should be kept');
+    assert.ok(!imports.some(i => i.includes('$')), 'template literal fragments should be filtered');
+    assert.ok(!imports.some(i => i.includes('${top}')), '${top} should not appear as import');
+  });
+
+  test('no $ in any extracted import specifier', () => {
+    const source = `
+      import chalk from 'chalk';
+      const msg = 'try "\${name}" instead';
+      import('lodash');
+    `;
+    const imports = extractImports(source);
+    for (const imp of imports) {
+      assert.ok(!imp.includes('$'), `import "${imp}" should not contain $`);
+    }
+  });
 });
 
 // ── Package name extraction ──────────────────────────────────────────────────

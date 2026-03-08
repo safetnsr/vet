@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
+import { collectDirFiles } from '../util.js';
 import { createInterface } from 'node:readline';
 import type { CheckResult, Issue } from '../types.js';
 
@@ -43,23 +44,10 @@ export interface SessionReceipt {
 
 // ── Session file discovery ───────────────────────────────────────────────────
 
-function walkDir(dir: string): string[] {
-  const results: string[] = [];
-  try {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) results.push(...walkDir(full));
-      else results.push(full);
-    }
-  } catch { /* skip */ }
-  return results;
-}
-
 export function findSessionFiles(baseDir?: string): string[] {
   const dir = baseDir || path.join(process.env['HOME'] || '~', '.claude', 'projects');
   if (!fs.existsSync(dir)) return [];
-  return walkDir(dir).filter(f => f.endsWith('.jsonl')).sort();
+  return collectDirFiles(dir).filter(f => f.endsWith('.jsonl')).sort();
 }
 
 export function findLatestSession(baseDir?: string): string | null {

@@ -5,7 +5,7 @@ vet is a zero-dependency TypeScript CLI that scores AI code health (A–F) acros
 ## Identity
 
 - **Purpose:** AI code health scorecard — catches AI-introduced issues before they land in production
-- **Package:** @safetnsr/vet on npm, run via npx
+- **Package:** published as `vet` under the safetnsr npm scope, run via `npx @safetnsr/vet`
 - **Language:** TypeScript strict mode, Node.js 18+, zero runtime dependencies
 
 ## Build Commands
@@ -13,7 +13,7 @@ vet is a zero-dependency TypeScript CLI that scores AI code health (A–F) acros
 Run these commands from the repo root:
 
     npm run build        compile TypeScript to dist/
-    npm test             run 123+ tests via Node built-in test runner
+    npm test             run 270+ tests via Node built-in test runner
     node dist/cli.js --pretty .    score this repo
 
 ## Architecture
@@ -21,7 +21,7 @@ Run these commands from the repo root:
 - src/cli.ts — entry point, flag parsing, runs all health checks in parallel
 - src/checks/ — one file per check category (owasp, integrity, deps, debt, etc.)
 - src/checks/owasp.ts — thin wrapper for OWASP Agentic Top 10 checks
-- src/checks/owasp-checks.ts — ASI01 through ASI10 implementation
+- src/checks/owasp/ — ASI01 through ASI10 implementation (one file per check)
 - src/checks/integrity.ts — empty catches, hallucinated imports, unhandled awaits
 - src/checks/deps.ts — phantom/dead/typosquat dependency detection
 - src/checks/debt.ts — near-duplicates, orphaned exports, naming drift
@@ -34,7 +34,7 @@ Run these commands from the repo root:
 
 - Zero runtime dependencies. Do not add any npm packages.
 - devDependencies only: typescript, @types/node, tsx
-- All 123 tests must pass after any change
+- All 270+ tests must pass after any change
 - Build must be clean via npm run build
 
 ## Security Principles
@@ -58,7 +58,7 @@ Run these commands from the repo root:
 - Publish to npm requires manual review of changelog and version bump
 - Destructive operations (delete, drop, remove) require explicit confirmation
 - No automated deployment without human review
-- CI passes all 123 tests before merge is allowed
+- CI passes all 270+ tests before merge is allowed
 
 ## Monitoring and Governance
 

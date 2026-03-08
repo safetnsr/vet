@@ -352,4 +352,43 @@ export function usedHelper() {
     assert.ok(dups.length >= 1, 'should detect arrow function duplicates');
     cleanup(dir);
   });
+
+  // 18. library: orphaned exports downgraded to info
+  test('library project: orphaned exports are info, not warning', async () => {
+    const dir = makeTempProject({
+      'package.json': JSON.stringify({ name: 'my-lib', main: 'dist/index.js', exports: { '.': './dist/index.js' } }),
+      'src/utils.ts': `export function unusedHelper() {
+  const result = doSomethingElaborate();
+  return result;
+}`,
+      'src/app.ts': `console.log('app');`,
+    });
+    const result = await checkDebt(dir, []);
+    const orphans = result.issues.filter(i => i.message.includes('orphaned'));
+    assert.ok(orphans.length >= 1, 'should still detect orphaned exports');
+    for (const o of orphans) {
+      assert.strictEqual(o.severity, 'info', 'library orphaned exports should be info severity');
+      assert.ok(o.message.includes('library detected'), 'should mention library detected');
+    }
+    cleanup(dir);
+  });
+
+  // 19. non-library: orphaned exports remain warning
+  test('non-library project: orphaned exports are warning', async () => {
+    const dir = makeTempProject({
+      'package.json': JSON.stringify({ name: 'my-app', scripts: { start: 'node index.js' } }),
+      'src/utils.ts': `export function unusedHelper() {
+  const result = doSomethingElaborate();
+  return result;
+}`,
+      'src/app.ts': `console.log('app');`,
+    });
+    const result = await checkDebt(dir, []);
+    const orphans = result.issues.filter(i => i.message.includes('orphaned'));
+    assert.ok(orphans.length >= 1, 'should detect orphaned exports');
+    for (const o of orphans) {
+      assert.strictEqual(o.severity, 'warning', 'non-library orphaned exports should be warning');
+    }
+    cleanup(dir);
+  });
 });

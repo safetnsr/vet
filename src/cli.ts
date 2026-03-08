@@ -112,23 +112,38 @@ if (configContent) {
 const ignore = config.ignore || [];
 
 if (command === 'init') {
-  const { init } = await import('./init.js');
-  await init(cwd);
+  try {
+    const { init } = await import('./init.js');
+    await init(cwd);
+  } catch (e) {
+    console.error(`${c.red}init failed:${c.reset}`, e instanceof Error ? e.message : e);
+    process.exit(1);
+  }
   process.exit(0);
 }
 
 if (command === 'receipt') {
-  const format = isJSON ? 'json' : 'ascii';
-  await runReceiptCommand(format);
+  try {
+    const format = isJSON ? 'json' : 'ascii';
+    await runReceiptCommand(format);
+  } catch (e) {
+    console.error(`${c.red}receipt failed:${c.reset}`, e instanceof Error ? e.message : e);
+    process.exit(1);
+  }
   process.exit(0);
 }
 
 if (command === 'map') {
-  const result = await checkMap(cwd);
-  if (isJSON) {
-    console.log(renderMapReport(result, true));
-  } else {
-    console.log(renderMapReport(result, false));
+  try {
+    const result = await checkMap(cwd);
+    if (isJSON) {
+      console.log(renderMapReport(result, true));
+    } else {
+      console.log(renderMapReport(result, false));
+    }
+  } catch (e) {
+    console.error(`${c.red}map failed:${c.reset}`, e instanceof Error ? e.message : e);
+    process.exit(1);
   }
   process.exit(0);
 }
@@ -162,25 +177,31 @@ if (!isGitRepo(cwd)) {
 
 // --fix mode
 if (isFix) {
-  console.log(`\n  ${c.bold}vet --fix${c.reset}\n`);
+  try {
+    console.log(`\n  ${c.bold}vet --fix${c.reset}\n`);
 
-  const { fixConfig } = await import('./fix/config.js');
-  const { fixModels } = await import('./fix/models.js');
-  const configResult = fixConfig(cwd);
-  const modelsResult = fixModels(cwd, ignore);
+    const { fixConfig } = await import('./fix/config.js');
+    const { fixModels } = await import('./fix/models.js');
+    const configResult = fixConfig(cwd);
+    const modelsResult = fixModels(cwd, ignore);
 
-  const allMessages = [...configResult.messages, ...modelsResult.messages];
-  const totalFixed = configResult.fixed + modelsResult.fixed;
+    const allMessages = [...configResult.messages, ...modelsResult.messages];
+    const totalFixed = configResult.fixed + modelsResult.fixed;
 
-  if (allMessages.length > 0) {
-    for (const msg of allMessages) console.log(msg);
+    if (allMessages.length > 0) {
+      for (const msg of allMessages) console.log(msg);
+    }
+
+    console.log(`\n  ${totalFixed > 0 ? c.green : c.dim}fixed ${totalFixed} issue${totalFixed !== 1 ? 's' : ''}${c.reset}\n`);
+  } catch (e) {
+    console.error(`${c.red}fix failed:${c.reset}`, e instanceof Error ? e.message : e);
+    process.exit(1);
   }
-
-  console.log(`\n  ${totalFixed > 0 ? c.green : c.dim}fixed ${totalFixed} issue${totalFixed !== 1 ? 's' : ''}${c.reset}\n`);
   process.exit(0);
 }
 
 async function runChecks(): Promise<ReturnType<typeof score>> {
+  try {
   // Run all checks, grouped into categories
   // Security: scan, secrets, config, models, owasp, permissions
   const [scanResult, secretsResult, configResult, modelsResult, owaspResult] = await Promise.all([
@@ -224,12 +245,21 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     debt: [readyResult, historyResult, debtResult],
     deps: [depsResult],
   });
+  } catch (e) {
+    console.error('check failed:', e instanceof Error ? e.message : e);
+    process.exit(1);
+  }
 }
 
 // --badge mode
 if (isBadge && !isWatch) {
-  const result = await runChecks();
-  console.log(reportBadge(result));
+  try {
+    const result = await runChecks();
+    console.log(reportBadge(result));
+  } catch (e) {
+    console.error(`${c.red}badge failed:${c.reset}`, e instanceof Error ? e.message : e);
+    process.exit(1);
+  }
   process.exit(0);
 }
 
@@ -267,19 +297,24 @@ if (isWatch) {
   }
 } else {
   // Normal run
-  const result = await runChecks();
+  try {
+    const result = await runChecks();
 
-  if (isJSON) {
-    console.log(reportJSON(result));
-  } else {
-    console.log(reportPretty(result));
-  }
+    if (isJSON) {
+      console.log(reportJSON(result));
+    } else {
+      console.log(reportPretty(result));
+    }
 
-  if (isCI || isHook) {
-    // --hook uses grade C (60) as threshold
-    // --ci uses config threshold or grade C default
-    const minScore = isHook ? 60 : (config.thresholds?.min ?? 60);
-    const minGrade = isHook ? 'C' : (config.thresholds?.grade ?? 'C');
-    process.exit(result.score >= minScore ? 0 : 1);
+    if (isCI || isHook) {
+      // --hook uses grade C (60) as threshold
+      // --ci uses config threshold or grade C default
+      const minScore = isHook ? 60 : (config.thresholds?.min ?? 60);
+      const minGrade = isHook ? 'C' : (config.thresholds?.grade ?? 'C');
+      process.exit(result.score >= minScore ? 0 : 1);
+    }
+  } catch (e) {
+    console.error(`${c.red}vet failed:${c.reset}`, e instanceof Error ? e.message : e);
+    process.exit(1);
   }
 }

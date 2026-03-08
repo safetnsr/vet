@@ -1,3 +1,5 @@
+// vet-ignore: tests
+// vet-ignore: diff
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
@@ -5,7 +7,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execSync } from 'node:child_process';
 
-const { checkTests } = await import('../src/checks/tests.ts');
+const { checkTests, hasVetIgnore } = await import('../src/checks/tests.ts');
 
 function makeTempProject(files = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'vet-tests-test-'));
@@ -264,4 +266,40 @@ test('result has correct name and shape', () => {
   assert.ok(typeof result.summary === 'string');
   assert.ok(Array.isArray(result.issues));
   cleanup(dir);
+});
+
+// 18. vet-ignore: tests directive skips file
+test('vet-ignore: tests directive skips file', () => {
+  const dir = makeTempProject({
+    'foo.test.ts': `// vet-ignore: tests
+      it('empty', () => {})
+      expect(true).toBe(true);
+      it.todo('later')
+    `,
+  });
+  const result = checkTests(dir, []);
+  assert.equal(result.issues.length, 0, 'file with vet-ignore: tests should be skipped');
+  assert.equal(result.score, 100);
+  cleanup(dir);
+});
+
+// 19. vet-ignore for different check does NOT skip tests check
+test('vet-ignore: debt does not skip tests check', () => {
+  const dir = makeTempProject({
+    'foo.test.ts': `// vet-ignore: debt
+      it('empty', () => {})
+    `,
+  });
+  const result = checkTests(dir, []);
+  assert.ok(result.issues.length >= 1, 'vet-ignore: debt should not affect tests check');
+  cleanup(dir);
+});
+
+// 20. hasVetIgnore unit tests
+test('hasVetIgnore detects directive in first 5 lines', () => {
+  assert.ok(hasVetIgnore('// vet-ignore: tests\ncode', 'tests'));
+  assert.ok(hasVetIgnore('line1\n// vet-ignore: tests\nline3', 'tests'));
+  assert.ok(!hasVetIgnore('line1\nline2\nline3\nline4\nline5\n// vet-ignore: tests', 'tests'));
+  assert.ok(!hasVetIgnore('// vet-ignore: debt', 'tests'));
+  assert.ok(hasVetIgnore('/* vet-ignore: tests */', 'tests'));
 });

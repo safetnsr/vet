@@ -13,7 +13,7 @@ import {
   checkASI08,
   checkASI09,
   checkASI10,
-} from './owasp-checks.js';
+} from './owasp/index.js';
 
 // ── Main export ───────────────────────────────────────────────────────────────
 

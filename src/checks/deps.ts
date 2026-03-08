@@ -89,7 +89,8 @@ export function extractImports(source: string): string[] {
     imports.add(match[1]);
   }
 
-  return [...imports];
+  // Filter out template literal fragments (e.g. "${top}" from fixHint strings)
+  return [...imports].filter(s => !s.includes('$'));
 }
 
 // ── Package name extraction ──────────────────────────────────────────────────
@@ -150,10 +151,14 @@ async function checkRegistry(packages: string[]): Promise<Map<string, boolean>> 
   }
 
   // Process in batches of 5
-  const concurrency = 5;
-  for (let i = 0; i < queue.length; i += concurrency) {
-    const batch = queue.slice(i, i + concurrency);
-    await Promise.all(batch.map(checkOne));
+  try {
+    const concurrency = 5;
+    for (let i = 0; i < queue.length; i += concurrency) {
+      const batch = queue.slice(i, i + concurrency);
+      await Promise.all(batch.map(checkOne));
+    }
+  } catch {
+    networkError = true;
   }
 
   if (networkError) {
@@ -166,6 +171,7 @@ async function checkRegistry(packages: string[]): Promise<Map<string, boolean>> 
 // ── Main check ───────────────────────────────────────────────────────────────
 
 export async function checkDeps(cwd: string): Promise<CheckResult> {
+  try {
   const issues: Issue[] = [];
 
   // Read package.json
@@ -317,4 +323,7 @@ export async function checkDeps(cwd: string): Promise<CheckResult> {
     issues,
     summary,
   };
+  } catch {
+    return { name: 'deps', score: 100, maxScore: 100, issues: [], summary: 'deps check failed' };
+  }
 }

@@ -327,19 +327,18 @@ test('checkVerify: python .pyi stubs not flagged as thin', async () => {
   }
 });
 
-// ── Non-Python project: thin files still flagged ──────────────────────────
-test('checkVerify: non-python project still flags thin files', async () => {
+// ── Non-Python project: thin source code files still flagged ──────────────
+test('checkVerify: non-python project still flags thin source code files', async () => {
   const dir = makeTmpDir();
   try {
     gitInit(dir);
     writeFileSync(join(dir, 'README.md'), 'hello');
     gitCommit(dir, 'initial');
-    writeFileSync(join(dir, '__init__.py'), '# init\nfrom .core import main\n');
-    gitCommit(dir, 'add __init__.py');
+    writeFileSync(join(dir, 'app.ts'), '// stub\nexport const x = 1;\n');
+    gitCommit(dir, 'add app.ts');
     const result = checkVerify(dir);
     assert.ok(result.issues.some(i => i.message.includes('Thin file')),
-      `non-python project should still flag thin files`);
-    assert.ok(!result.summary.includes('python project'));
+      `thin source code files should still be flagged`);
   } finally {
     rmSync(dir, { recursive: true });
   }
@@ -451,6 +450,163 @@ test('checkVerify: .svg and .lock files not flagged as test without assertions',
     const result = checkVerify(dir);
     assert.ok(!result.issues.some(i => i.message.includes('no assertions')),
       `Non-code files should never be flagged as test without assertions`);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+// ── py.typed marker file not flagged ──────────────────────────────────────
+test('checkVerify: py.typed marker file not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'pyproject.toml'), '[project]\nname = "test"');
+    gitCommit(dir, 'initial');
+    writeFileSync(join(dir, 'py.typed'), '');
+    gitCommit(dir, 'add py.typed');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('py.typed')),
+      'py.typed should not be flagged as thin/empty');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+// ── .cff citation file not flagged ───────────────────────────────────────
+test('checkVerify: .cff citation file not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    gitCommit(dir, 'initial');
+    writeFileSync(join(dir, 'CITATION.cff'), 'cff-version: 1.2.0\ntitle: test');
+    gitCommit(dir, 'add CITATION.cff');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('CITATION.cff')),
+      '.cff files should not be flagged as thin');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+// ── .mdc cursor rules not flagged ────────────────────────────────────────
+test('checkVerify: .mdc cursor rules not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    gitCommit(dir, 'initial');
+    writeFileSync(join(dir, 'rules.mdc'), 'some cursor rule');
+    gitCommit(dir, 'add rules.mdc');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('rules.mdc')),
+      '.mdc files should not be flagged as thin');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+// ── .html files not flagged as thin ───────────────────────────────────────
+test('checkVerify: .html files not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    gitCommit(dir, 'initial');
+    writeFileSync(join(dir, 'page.html'), '<h1>Hello</h1>');
+    gitCommit(dir, 'add page.html');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('page.html')),
+      '.html files should not be flagged as thin');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+// ── .txt files not flagged as thin ───────────────────────────────────────
+test('checkVerify: .txt files not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    gitCommit(dir, 'initial');
+    writeFileSync(join(dir, 'notes.txt'), 'some notes');
+    gitCommit(dir, 'add notes.txt');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('notes.txt')),
+      '.txt files should not be flagged as thin');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+// ── __init__.py not flagged even without pyproject.toml ──────────────────
+test('checkVerify: __init__.py not flagged even in non-python project', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    gitCommit(dir, 'initial');
+    mkdirSync(join(dir, 'pkg'), { recursive: true });
+    writeFileSync(join(dir, 'pkg/__init__.py'), '');
+    gitCommit(dir, 'add pkg/__init__.py');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('__init__.py')),
+      '__init__.py should never be flagged as thin/empty');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+// ── Fix: __main__.py excluded from thin file check ────────────────────────
+test('checkVerify: __main__.py not flagged as thin file', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    writeFileSync(join(dir, 'pyproject.toml'), '[project]\nname = "myapp"');
+    gitCommit(dir, 'initial');
+    mkdirSync(join(dir, 'myapp'), { recursive: true });
+    writeFileSync(join(dir, 'myapp/__main__.py'), 'from .cli import main\n\nmain()\n');
+    gitCommit(dir, 'add __main__.py');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('Thin file') && i.message.includes('__main__.py')),
+      `__main__.py should not be flagged as thin, got: ${JSON.stringify(result.issues)}`);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+// ── Fix: examples/ directory excluded from thin file check ────────────────
+test('checkVerify: files in examples/ not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    gitCommit(dir, 'initial');
+    mkdirSync(join(dir, 'examples'), { recursive: true });
+    writeFileSync(join(dir, 'examples/demo.py'), 'print("hello")\n');
+    gitCommit(dir, 'add examples/demo.py');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('Thin file') && i.message.includes('examples/')),
+      `Files in examples/ should not be flagged as thin, got: ${JSON.stringify(result.issues)}`);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('checkVerify: files in docs/ not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    gitCommit(dir, 'initial');
+    mkdirSync(join(dir, 'docs'), { recursive: true });
+    writeFileSync(join(dir, 'docs/guide.py'), 'x = 1\n');
+    gitCommit(dir, 'add docs/guide.py');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('Thin file') && i.message.includes('docs/')),
+      `Files in docs/ should not be flagged as thin, got: ${JSON.stringify(result.issues)}`);
   } finally {
     rmSync(dir, { recursive: true });
   }

@@ -99,6 +99,72 @@ test('checkModels: deprecated model in regular src is error', async () => {
   }
 });
 
+// ── Monorepo AI framework detection ───────────────────────────────────────
+
+test('checkModels: detects AI framework from subdirectory pyproject.toml', async () => {
+  const dir = makeTmpDir();
+  try {
+    // No root package.json — monorepo style, pyproject in direct subdirectory
+    mkdirSync(join(dir, 'core'), { recursive: true });
+    writeFileSync(join(dir, 'core/pyproject.toml'), '[project]\nname = "core"\ndependencies = ["langchain"]');
+    mkdirSync(join(dir, 'src'));
+    writeFileSync(join(dir, 'src', 'config.py'), 'MODEL = "gpt-3.5-turbo"');
+    const result = await checkModels(dir, []);
+    // Should detect as AI framework → info severity, floor at 70
+    const gpt35Issue = result.issues.find(i => i.message.includes('gpt-3.5-turbo'));
+    if (gpt35Issue) {
+      assert.equal(gpt35Issue.severity, 'info', 'AI framework should downgrade to info');
+    }
+    assert.ok(result.score >= 70, `AI framework score should be >= 70, got ${result.score}`);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('checkModels: detects AI framework from deep monorepo pyproject.toml', async () => {
+  const dir = makeTmpDir();
+  try {
+    // Simulate langchain monorepo structure: libs/langchain/pyproject.toml
+    mkdirSync(join(dir, 'libs', 'core'), { recursive: true });
+    writeFileSync(join(dir, 'libs', 'core', 'pyproject.toml'), '[project]\nname = "langchain-core"\ndependencies = ["langchain"]');
+    mkdirSync(join(dir, 'src'));
+    writeFileSync(join(dir, 'src', 'config.py'), 'MODEL = "gpt-3.5-turbo"');
+    const result = await checkModels(dir, []);
+    assert.ok(result.score >= 70, `Deep monorepo AI framework should score >= 70, got ${result.score}`);
+    assert.ok(result.summary.includes('AI framework detected'), `Should detect AI framework from deep pyproject.toml`);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('checkModels: detects AI framework from directory name', async () => {
+  const parent = mkdtempSync(join(osTmpdir(), 'vet-models-'));
+  const dir = join(parent, 'langchain');
+  mkdirSync(dir, { recursive: true });
+  try {
+    mkdirSync(join(dir, 'src'));
+    writeFileSync(join(dir, 'src', 'config.py'), 'MODEL = "gpt-3.5-turbo"');
+    const result = await checkModels(dir, []);
+    assert.ok(result.summary.includes('AI framework') || result.score >= 70,
+      `Should detect AI framework from dir name 'langchain', got score ${result.score}`);
+  } finally {
+    rmSync(parent, { recursive: true });
+  }
+});
+
+test('checkModels: detects AI framework from CLAUDE.md mentioning LLM terms', async () => {
+  const dir = makeTmpDir();
+  try {
+    writeFileSync(join(dir, 'CLAUDE.md'), '# Instructions\nThis is an LLM-powered app using embeddings and RAG.');
+    mkdirSync(join(dir, 'src'));
+    writeFileSync(join(dir, 'src', 'config.ts'), 'const MODEL = "gpt-3.5-turbo";');
+    const result = await checkModels(dir, []);
+    assert.ok(result.score >= 70, `AI framework via CLAUDE.md should score >= 70, got ${result.score}`);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
 // ── Clean project ─────────────────────────────────────────────────────────
 
 test('checkModels: no deprecated models returns score 100', async () => {

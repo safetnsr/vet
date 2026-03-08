@@ -53,14 +53,37 @@ function builtinReady(cwd: string, ignore: string[]): CheckResult {
     issues.push({ severity: 'error', message: 'no README — AI agents have no project context', fixable: true, fixHint: 'create a README.md' });
   }
 
+  // Detect Python project (root or subdirs)
+  const pythonMarkers = ['pyproject.toml', 'setup.py', 'setup.cfg', 'requirements.txt'];
+  const hasPythonRoot = pythonMarkers.some(m => files.includes(m));
+  const hasPythonSubdir = files.some(f => pythonMarkers.some(m => f.endsWith('/' + m) || f.endsWith('\\' + m)));
+  const isPython = hasPythonRoot || hasPythonSubdir;
+
+  // Detect monorepo (multiple manifests in subdirs)
+  const subPyprojects = files.filter(f => f !== 'pyproject.toml' && f.endsWith('pyproject.toml'));
+  const subPackageJsons = files.filter(f => f !== 'package.json' && f.endsWith('package.json'));
+  const isMonorepo = subPyprojects.length > 0 || subPackageJsons.length > 1;
+
   const manifests = ['package.json', 'pyproject.toml', 'Cargo.toml', 'go.mod', 'pom.xml', 'build.gradle', 'Gemfile', 'composer.json'];
   const hasManifest = manifests.some(m => files.includes(m));
-  if (!hasManifest) {
+  // For Python projects, any pyproject.toml in subdirs counts as a manifest
+  const hasManifestAnywhere = hasManifest || isPython;
+  if (!hasManifestAnywhere) {
     issues.push({ severity: 'error', message: 'no package manifest — agents can\'t resolve dependencies', fixable: false });
   }
 
   const codeExts = ['.ts', '.js', '.tsx', '.jsx', '.py', '.rs', '.go', '.java', '.rb', '.php', '.cs', '.swift', '.kt'];
-  const testFiles = files.filter(f => /\.(test|spec)\.(ts|js|tsx|jsx|py)$/.test(f) || f.includes('__tests__/') || f.startsWith('tests/') || f.startsWith('test/'));
+  // Broader test detection: includes Python test patterns and nested test directories
+  const testFiles = files.filter(f => {
+    if (/\.(test|spec)\.(ts|js|tsx|jsx|py)$/.test(f)) return true;
+    if (f.includes('__tests__/')) return true;
+    if (f.startsWith('tests/') || f.startsWith('test/')) return true;
+    if (f.includes('/tests/') || f.includes('/test/')) return true;
+    // Python test file patterns: test_*.py, *_test.py
+    if (/(?:^|[/\\])test_[^/\\]+\.py$/.test(f)) return true;
+    if (/(?:^|[/\\])[^/\\]+_test\.py$/.test(f)) return true;
+    return false;
+  });
   const codeFiles = files.filter(f => codeExts.some(ext => f.endsWith(ext)));
   if (codeFiles.length > 5 && testFiles.length === 0) {
     issues.push({ severity: 'error', message: 'no tests — AI agents produce better code when tests exist to validate against', fixable: false });
@@ -98,17 +121,24 @@ function builtinReady(cwd: string, ignore: string[]): CheckResult {
   const infos = issues.filter(i => i.severity === 'info').length;
   const score = Math.max(0, Math.min(100, 100 - errors * 30 - warnings * 15 - infos * 3));
 
+  let summary = issues.length === 0 ? 'codebase is well-structured for AI' : `${issues.length} readiness issues`;
+  if (isMonorepo) summary += ' (monorepo detected)';
+
   return {
     name: 'ready',
     score: Math.round(score),
     maxScore: 100,
     issues,
-    summary: issues.length === 0 ? 'codebase is well-structured for AI' : `${issues.length} readiness issues`,
+    summary,
   };
 }
 
 export async function checkReady(cwd: string, ignore: string[]): Promise<CheckResult> {
-  const rich = await tryAiReady(cwd);
-  if (rich) return rich;
-  return builtinReady(cwd, ignore);
+  try {
+    const rich = await tryAiReady(cwd);
+    if (rich) return rich;
+    return builtinReady(cwd, ignore);
+  } catch {
+    return { name: 'ready', score: 100, maxScore: 100, issues: [], summary: 'ready check failed' };
+  }
 }

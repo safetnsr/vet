@@ -95,7 +95,7 @@ export function collectDirFiles(dir: string): string[] {
   return files;
 }
 
-export function matchesAny(file: string, patterns: string[]): boolean {
+function matchesAny(file: string, patterns: string[]): boolean {
   return patterns.some(p => {
     if (p.endsWith('/')) return file.startsWith(p) || file.includes('/' + p);
     if (p.startsWith('*.')) return file.endsWith(p.slice(1));

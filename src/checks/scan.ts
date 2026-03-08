@@ -20,16 +20,34 @@ const CRITICAL_PATTERNS: ScanPattern[] = [
     regex: /(?:aHR0c|data:text\/html;base64)/i,
   },
   {
-    id: 'curl-wget',
+    id: 'curl-pipe-shell',
     severity: 'critical',
-    description: 'Network download command in agent config — potential remote payload fetch',
-    regex: /(?:curl|wget|fetch)\s+(?:https?:\/\/|[-])/i,
+    description: 'Download-and-execute pattern — remote code execution',
+    regex: /(?:curl|wget)\s+[^\n|]*\|\s*(?:ba)?sh\b/i,
   },
   {
-    id: 'shell-injection',
+    id: 'pipe-to-shell',
     severity: 'critical',
-    description: 'Shell injection pattern — command substitution or eval/exec call',
-    regex: /\$\(|`[^`]+`|\beval\b|\bexec\b/,
+    description: 'Pipe to shell interpreter — potential code execution',
+    regex: /\|\s*(?:ba)?sh\b|\|\s*\beval\b/,
+  },
+  {
+    id: 'command-substitution',
+    severity: 'critical',
+    description: 'Command substitution in config — potential injection vector',
+    regex: /\$\([^)]+\)/,
+  },
+  {
+    id: 'data-exfiltration',
+    severity: 'critical',
+    description: 'Data exfiltration pattern — sending local data to external URL',
+    regex: /curl\s+[^\n]*(?:-[dFT]\s*@|--data-binary\s*@|--upload-file)|curl\s+[^\n]*\$(?:API_KEY|SECRET|TOKEN|PASSWORD)|nc\s+-[^\n]*\d+\.\d+/i,
+  },
+  {
+    id: 'base64-exec',
+    severity: 'critical',
+    description: 'Base64-decoded payload piped to execution',
+    regex: /base64\s+(?:-d|--decode)[^\n]*\|\s*(?:ba)?sh\b/i,
   },
   {
     id: 'powershell-download',
@@ -147,14 +165,45 @@ interface ScanFinding {
   description: string;
 }
 
+/** Check if a line is inside a markdown code fence or inline code */
+function isInCodeContext(lines: string[], lineIndex: number): boolean {
+  const line = lines[lineIndex];
+  // Check if the match is inside inline backticks on this line
+  // Simple heuristic: line contains backtick-wrapped content with the pattern
+  if (/`[^`]*\$\([^)]+\)[^`]*`/.test(line)) return true;
+
+  // Check if we're inside a fenced code block (``` or ~~~)
+  let inFence = false;
+  for (let i = 0; i < lineIndex; i++) {
+    if (/^```|^~~~/.test(lines[i].trim())) inFence = !inFence;
+  }
+  return inFence;
+}
+
+/** Check if a file is a CI/workflow file where shell commands are expected */
+function isWorkflowFile(relPath: string): boolean {
+  const normalized = relPath.replace(/\\/g, '/');
+  return normalized.includes('.github/workflows/') ||
+    normalized.includes('.circleci/') ||
+    normalized.includes('.gitlab-ci') ||
+    /Makefile|Dockerfile|Jenkinsfile/i.test(normalized);
+}
+
 function scanContent(content: string, relPath: string): ScanFinding[] {
   const findings: ScanFinding[] = [];
   const lines = content.split('\n');
+  const isWorkflow = isWorkflowFile(relPath);
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
     for (const pattern of ALL_SCAN_PATTERNS) {
+      // Skip command-substitution checks in workflow files (shell commands are expected)
+      if (pattern.id === 'command-substitution' && isWorkflow) continue;
+
+      // Skip command-substitution in markdown code contexts
+      if (pattern.id === 'command-substitution' && relPath.endsWith('.md') && isInCodeContext(lines, i)) continue;
+
       if (pattern.regex.test(line)) {
         pattern.regex.lastIndex = 0;
         findings.push({

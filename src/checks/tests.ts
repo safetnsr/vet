@@ -197,6 +197,14 @@ function findDuplicateDescribes(lines: string[], file: string): Issue[] {
   return issues;
 }
 
+/** Check if a file has a vet-ignore directive for a specific check in its first 5 lines.
+ *  Format: // vet-ignore: check-name  OR  /* vet-ignore: check-name */
+export function hasVetIgnore(content: string, checkName: string): boolean {
+  const firstLines = content.split('\n').slice(0, 5);
+  const re = new RegExp(`(?://|/\\*|#)\\s*vet-ignore:\\s*${checkName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+  return firstLines.some(line => re.test(line));
+}
+
 export function checkTests(cwd: string, ignore: string[]): CheckResult {
   const allFiles = walkFiles(cwd, ignore);
   const testFiles = allFiles.filter(f => isTestFile(f));
@@ -209,6 +217,10 @@ export function checkTests(cwd: string, ignore: string[]): CheckResult {
     } catch {
       continue;
     }
+
+    // Skip files with vet-ignore: tests directive
+    if (hasVetIgnore(content, 'tests')) continue;
+
     const lines = content.split('\n');
 
     issues.push(...findTautological(lines, rel));
