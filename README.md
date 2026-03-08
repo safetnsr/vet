@@ -40,6 +40,7 @@ a codebase that scores well here gives AI agents better context, fewer hallucina
 | **secrets** | scans dist/, build/, .next/ + .env files for leaked API keys using pattern + entropy analysis |
 | **history** | git commit churn, AI attribution ratios, suspiciously large changes |
 | **receipt** | parses Claude Code session logs — files changed, commands run, packages installed, SHA256 integrity hash |
+| **compact** | compaction forensics — what context got dropped during Claude Code session compaction |
 
 plus: **integrity** (hallucinated imports), **deps** (unused/phantom dependencies), **owasp** (OWASP Top 10 for AI agents), **verify** (validates agent claims against actual changes).
 
@@ -91,6 +92,9 @@ npx @safetnsr/vet init
 # agent session receipt
 npx @safetnsr/vet receipt
 npx @safetnsr/vet receipt --json
+
+# compaction forensics for claude sessions
+npx @safetnsr/vet compact [log]
 ```
 
 ## --fix

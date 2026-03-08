@@ -19,6 +19,7 @@ import { checkVerify } from './checks/verify.js';
 import { checkTests } from './checks/tests.js';
 import { checkMap, renderMapReport } from './checks/map.js';
 import { checkPermissions } from './checks/permissions.js';
+import { checkCompact, runCompactCommand } from './checks/compact.js';
 import { score } from './scorer.js';
 import { toGrade } from './categories.js';
 import { reportPretty, reportJSON, reportBadge } from './reporter.js';
@@ -56,6 +57,7 @@ if (flags.has('--help') || flags.has('-h')) {
     npx @safetnsr/vet receipt            show last agent session receipt
     npx @safetnsr/vet map [dir]          show agent visibility map
     npx @safetnsr/vet permissions [dir]  audit Claude Code config for dangerous grants
+    npx @safetnsr/vet compact [log]      compaction forensics for claude code sessions
 
   ${c.dim}categories:${c.reset}
     security   (30%)  scan, secrets, config, model usage
@@ -91,7 +93,7 @@ if (flags.has('--version') || flags.has('-v')) {
   process.exit(0);
 }
 
-const COMMANDS = ['init', 'receipt', 'map', 'permissions'];
+const COMMANDS = ['init', 'receipt', 'map', 'permissions', 'compact'];
 const command = COMMANDS.includes(positional[0]) ? positional[0] : undefined;
 const cwd = resolve(positional.find(p => !COMMANDS.includes(p)) || '.');
 const isCI = flags.has('--ci');
@@ -170,6 +172,18 @@ if (command === 'permissions') {
   process.exit(result.score < 60 ? 1 : 0);
 }
 
+if (command === 'compact') {
+  try {
+    const format = isJSON ? 'json' : 'ascii';
+    const sessionArg = positional.find(p => p !== 'compact' && !COMMANDS.includes(p));
+    await runCompactCommand(format, sessionArg);
+  } catch (e) {
+    console.error(`${c.red}compact failed:${c.reset}`, e instanceof Error ? e.message : e);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 if (!isGitRepo(cwd)) {
   console.error(`${c.red}not a git repository${c.reset}. vet operates on git repos.`);
   process.exit(1);
@@ -230,6 +244,9 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
   // Receipt is informational — fold into integrity category but keep low weight
   const receiptResult = await checkReceipt(cwd);
 
+  // Compact: compaction forensics
+  const compactResult = await checkCompact(cwd);
+
   // Memory: stale facts in agent memory files
   const memoryResult = checkMemory(cwd);
 
@@ -241,7 +258,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
 
   return score(cwd, {
     security: [scanResult, secretsResult, configResult, modelsResult, owaspResult, permissionsResult],
-    integrity: [diffResult, integrityResult, receiptResult, memoryResult, verifyResult, testsResult],
+    integrity: [diffResult, integrityResult, receiptResult, compactResult, memoryResult, verifyResult, testsResult],
     debt: [readyResult, historyResult, debtResult],
     deps: [depsResult],
   });
