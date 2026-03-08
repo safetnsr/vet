@@ -23,11 +23,22 @@ const WEIGHTS = {
   deps: 0.15,
 } as const;
 
+// ── Scoring floor for non-security checks ────────────────────────────────────
+
+const SECURITY_CHECKS = new Set(['scan', 'secrets', 'permissions', 'owasp']);
+
+/** Apply a floor of 20 to non-security checks that have no security-related errors */
+export function applyScoreFloor(check: CheckResult): number {
+  if (SECURITY_CHECKS.has(check.name)) return check.score;
+  // Non-security check: minimum score is 20
+  return Math.max(20, check.score);
+}
+
 // ── Average scores within a category ────────────────────────────────────────
 
 function averageScore(checks: CheckResult[]): number {
   if (checks.length === 0) return 100;
-  const total = checks.reduce((sum, c) => sum + c.score, 0);
+  const total = checks.reduce((sum, c) => sum + applyScoreFloor(c), 0);
   return Math.round(total / checks.length);
 }
 

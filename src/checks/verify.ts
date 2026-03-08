@@ -1,4 +1,4 @@
-import { join, resolve, basename, dirname } from 'node:path';
+import { join, resolve, basename, dirname, extname } from 'node:path';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import type { CheckResult, Issue } from '../types.js';
@@ -13,9 +13,58 @@ function safeExec(cmd: string, cwd: string): string {
   }
 }
 
+// ── Config/meta file exclusion for thin-file checks ──────────────────────────
+
+const CONFIG_DOTFILES = new Set([
+  '.gitignore', '.gitattributes', '.nvmrc', '.node-version', '.editorconfig',
+  '.prettierrc', '.eslintignore', '.npmrc', '.npmignore',
+]);
+
+const CONFIG_EXTENSIONS = new Set([
+  '.yml', '.yaml', '.json', '.toml', '.cfg', '.ini', '.lock', '.svg', '.xml',
+]);
+
+const CONFIG_DIRS = ['.github/', '.husky/', '.vscode/', '.idea/'];
+
+const META_FILES = new Set([
+  'FUNDING.yaml', 'CODEOWNERS', 'LICENSE',
+]);
+
+function isConfigOrMetaFile(filePath: string): boolean {
+  const base = basename(filePath);
+  const ext = extname(filePath).toLowerCase();
+  const normalized = filePath.replace(/\\/g, '/');
+
+  // Dotfiles
+  if (CONFIG_DOTFILES.has(base)) return true;
+
+  // Config extensions
+  if (CONFIG_EXTENSIONS.has(ext)) return true;
+
+  // Config directories
+  if (CONFIG_DIRS.some(d => normalized.includes(d) || normalized.startsWith(d))) return true;
+
+  // Meta files
+  if (META_FILES.has(base)) return true;
+  if (base.startsWith('CHANGELOG')) return true;
+
+  return false;
+}
+
+// ── Code file extensions for test detection ──────────────────────────────────
+
+const CODE_EXTENSIONS = new Set(['.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs']);
+
+const TEST_FILE_PATTERN = /\.(test|spec)\.(ts|js|tsx|jsx)$/i;
+
 function isTestFile(filePath: string): boolean {
   const base = basename(filePath);
-  if (/\.(test|spec)\.[a-z]+$/i.test(base)) return true;
+  const ext = extname(filePath).toLowerCase();
+
+  // Only code files can be test files
+  if (!CODE_EXTENSIONS.has(ext)) return false;
+
+  if (TEST_FILE_PATTERN.test(base)) return true;
   const normalized = filePath.replace(/\\/g, '/');
   // Match __tests__/ anywhere in path (including at root)
   if (normalized.includes('__tests__/') || normalized.includes('/__tests__')) return true;
@@ -197,6 +246,11 @@ export function checkVerify(cwd: string, since?: string): CheckResult {
     // 2. File must have meaningful content (>10 non-empty lines)
     // Skip thin file check for Python boilerplate files
     if (python && isPythonBoilerplate(relPath)) {
+      verified++;
+      continue;
+    }
+    // Skip thin file check for config/meta files (they're supposed to be small)
+    if (isConfigOrMetaFile(relPath)) {
       verified++;
       continue;
     }

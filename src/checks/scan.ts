@@ -101,9 +101,10 @@ const CONFIG_TARGETS = [
   '.claude', 'CLAUDE.md', 'AGENTS.md',
   '.cursorrules', '.cursor',
   '.github',
-  '.aider.conf.yml',
+  'copilot-instructions.md',
+  '.aider.conf.yml', '.aider',
   '.continue',
-  '.mcp',
+  '.mcp', 'mcp.json', '.mcp.json',
   '.roomodes', '.roo',
 ];
 

@@ -345,6 +345,117 @@ test('checkVerify: non-python project still flags thin files', async () => {
   }
 });
 
+// ── Fix 1: Config/meta files excluded from thin file check ────────────────
+
+test('checkVerify: .gitignore not flagged as thin file', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    gitCommit(dir, 'initial');
+    writeFileSync(join(dir, '.gitignore'), 'node_modules\ndist\n');
+    gitCommit(dir, 'add .gitignore');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('Thin file') && i.message.includes('.gitignore')),
+      `.gitignore should not be flagged as thin, got: ${JSON.stringify(result.issues)}`);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('checkVerify: config extensions (json, yml, toml) not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    gitCommit(dir, 'initial');
+    writeFileSync(join(dir, 'tsconfig.json'), '{"compilerOptions": {}}');
+    writeFileSync(join(dir, 'config.yml'), 'key: value\n');
+    writeFileSync(join(dir, 'settings.toml'), '[section]\nkey = "val"\n');
+    gitCommit(dir, 'add config files');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('Thin file') && (
+      i.message.includes('.json') || i.message.includes('.yml') || i.message.includes('.toml')
+    )), `Config files should not be flagged as thin, got: ${JSON.stringify(result.issues)}`);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('checkVerify: .github/ directory files not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    gitCommit(dir, 'initial');
+    mkdirSync(join(dir, '.github'));
+    writeFileSync(join(dir, '.github', 'FUNDING.yml'), 'github: user\n');
+    gitCommit(dir, 'add .github/FUNDING.yml');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('Thin file') && i.message.includes('.github')),
+      `.github/ files should not be flagged as thin`);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('checkVerify: LICENSE and CODEOWNERS not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    gitCommit(dir, 'initial');
+    writeFileSync(join(dir, 'LICENSE'), 'MIT License\n');
+    writeFileSync(join(dir, 'CODEOWNERS'), '* @owner\n');
+    gitCommit(dir, 'add LICENSE and CODEOWNERS');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('Thin file') && (
+      i.message.includes('LICENSE') || i.message.includes('CODEOWNERS')
+    )), `META files should not be flagged as thin`);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+// ── Fix 4: Non-code files never flagged as test without assertions ────────
+
+test('checkVerify: .json file not flagged as test without assertions', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    gitCommit(dir, 'initial');
+    // A file in __tests__/ that is JSON — should NOT be flagged as "test without assertions"
+    mkdirSync(join(dir, '__tests__'));
+    const content = Array(12).fill(0).map((_, i) => `"key${i}": ${i}`).join(',\n');
+    writeFileSync(join(dir, '__tests__/fixtures.json'), `{${content}}`);
+    gitCommit(dir, 'add __tests__/fixtures.json');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('no assertions') && i.message.includes('.json')),
+      `JSON files should never be flagged as test without assertions, got: ${JSON.stringify(result.issues)}`);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('checkVerify: .svg and .lock files not flagged as test without assertions', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    gitCommit(dir, 'initial');
+    mkdirSync(join(dir, '__tests__'));
+    const svgContent = Array(12).fill(0).map((_, i) => `<!-- line ${i} -->`).join('\n');
+    writeFileSync(join(dir, '__tests__/icon.svg'), `<svg>${svgContent}</svg>`);
+    gitCommit(dir, 'add __tests__/icon.svg');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('no assertions')),
+      `Non-code files should never be flagged as test without assertions`);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
 // ── 16. score is bounded 0-100 ────────────────────────────────────────────
 test('checkVerify: score is always between 0 and 100', async () => {
   const dir = makeTmpDir();

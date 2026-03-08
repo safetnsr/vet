@@ -1,6 +1,51 @@
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 import type { CheckResult, Issue } from '../types.js';
 import { readFile, walkFiles } from '../util.js';
+
+// ── AI framework detection ───────────────────────────────────────────────────
+
+const AI_NAME_KEYWORDS = ['ai', 'llm', 'model', 'openai', 'anthropic', 'langchain', 'provider'];
+const AI_PKG_KEYWORDS = new Set(['ai', 'llm', 'language-model', 'openai', 'anthropic']);
+
+function isAiFramework(cwd: string): boolean {
+  // Check package.json
+  const pkgRaw = readFile(join(cwd, 'package.json'));
+  if (pkgRaw) {
+    try {
+      const pkg = JSON.parse(pkgRaw);
+      const name = (pkg.name || '').toLowerCase();
+      if (AI_NAME_KEYWORDS.some(k => name.includes(k))) return true;
+      if (Array.isArray(pkg.keywords) && pkg.keywords.some((k: string) => AI_PKG_KEYWORDS.has(k.toLowerCase()))) return true;
+    } catch { /* skip */ }
+  }
+
+  // Check pyproject.toml / setup.py for AI deps
+  const pyproject = readFile(join(cwd, 'pyproject.toml'));
+  if (pyproject) {
+    const aiDeps = ['openai', 'anthropic', 'langchain', 'transformers', 'torch', 'tensorflow'];
+    if (aiDeps.some(d => pyproject.includes(d))) return true;
+  }
+  const setupPy = readFile(join(cwd, 'setup.py'));
+  if (setupPy) {
+    const aiDeps = ['openai', 'anthropic', 'langchain', 'transformers', 'torch', 'tensorflow'];
+    if (aiDeps.some(d => setupPy.includes(d))) return true;
+  }
+
+  return false;
+}
+
+// ── Test/example/docs path detection ─────────────────────────────────────────
+
+const TEST_DOCS_PATTERNS = ['test/', 'tests/', '__tests__/', 'examples/', 'docs/'];
+
+function isTestOrDocsFile(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, '/');
+  if (TEST_DOCS_PATTERNS.some(p => normalized.includes(p) || normalized.startsWith(p))) return true;
+  const base = basename(filePath);
+  if (/\.(test|spec)\./i.test(base)) return true;
+  if (base.endsWith('.md')) return true;
+  return false;
+}
 
 // Try to use @safetnsr/model-graveyard if installed (248 models, alias matching, YAML registry)
 async function tryModelGraveyard(cwd: string): Promise<CheckResult | null> {
@@ -10,6 +55,7 @@ async function tryModelGraveyard(cwd: string): Promise<CheckResult | null> {
 
     const report = await mod.scan(cwd);
     const issues: Issue[] = [];
+    const aiFramework = isAiFramework(cwd);
 
     // Files that define deprecated model registries should not be flagged
     const SELF_FILES = ['models.ts', 'models.js', 'model-graveyard', 'model-registry', 'sunset', 'fix/models'];
@@ -19,8 +65,10 @@ async function tryModelGraveyard(cwd: string): Promise<CheckResult | null> {
       // Skip self-referencing files (model definition/fix files)
       if (match.file && SELF_FILES.some(s => match.file.toLowerCase().includes(s))) continue;
       if (match.model.status === 'deprecated' || match.model.status === 'eol') {
+        const inTestDocs = match.file && isTestOrDocsFile(match.file);
+        const severity: 'error' | 'info' = (aiFramework || inTestDocs) ? 'info' : 'error';
         issues.push({
-          severity: 'error',
+          severity,
           message: `${match.model.status} model "${match.raw}" in ${match.file}:${match.line}${match.model.successor ? ` — use "${match.model.successor}"` : ''}`,
           file: match.file,
           line: match.line,
@@ -30,16 +78,24 @@ async function tryModelGraveyard(cwd: string): Promise<CheckResult | null> {
       }
     }
 
-    const score = Math.max(0, 100 - issues.length * 20);
+    const errorCount = issues.filter(i => i.severity === 'error').length;
+    const score = aiFramework
+      ? Math.max(70, 100 - errorCount * 20)
+      : Math.max(0, 100 - errorCount * 20);
+
+    let summary = issues.length === 0
+      ? `${report.filesScanned} files scanned (via model-graveyard) — all current`
+      : `${issues.length} deprecated model${issues.length > 1 ? 's' : ''} (via model-graveyard)`;
+    if (aiFramework) {
+      summary += ' — AI framework detected — model references are expected';
+    }
 
     return {
       name: 'models',
       score: Math.min(100, score),
       maxScore: 100,
       issues,
-      summary: issues.length === 0
-        ? `${report.filesScanned} files scanned (via model-graveyard) — all current`
-        : `${issues.length} deprecated model${issues.length > 1 ? 's' : ''} (via model-graveyard)`,
+      summary,
     };
   } catch {
     return null;
@@ -94,6 +150,7 @@ function builtinModels(cwd: string, ignore: string[]): CheckResult {
   const issues: Issue[] = [];
   const files = walkFiles(cwd, ignore);
   const found = new Map<string, string[]>();
+  const aiFramework = isAiFramework(cwd);
 
   for (const f of files) {
     if (!SCAN_EXTS.some(ext => f.endsWith(ext))) continue;
@@ -110,26 +167,46 @@ function builtinModels(cwd: string, ignore: string[]): CheckResult {
     }
   }
 
-  for (const [model, files] of found) {
+  for (const [model, modelFiles] of found) {
     const info = SUNSET_MODELS[model];
-    const fileList = files.length <= 2 ? files.join(', ') : `${files[0]} +${files.length - 1} more`;
+    const fileList = modelFiles.length <= 2 ? modelFiles.join(', ') : `${modelFiles[0]} +${modelFiles.length - 1} more`;
+
+    // Determine severity: downgrade for AI frameworks or test/docs files
+    const allInTestDocs = modelFiles.every(f => isTestOrDocsFile(f));
+    const severity: 'error' | 'info' = (aiFramework || allInTestDocs) ? 'info' : 'error';
+
     issues.push({
-      severity: 'error',
+      severity,
       message: `deprecated model "${model}" in ${fileList} — use "${info.replacement}"${info.sunset ? ` (sunset ${info.sunset})` : ''}`,
-      file: files[0],
+      file: modelFiles[0],
       fixable: true,
       fixHint: `replace "${model}" with "${info.replacement}"`,
     });
   }
 
-  const score = Math.max(0, 100 - issues.length * 20);
+  let score: number;
+  if (aiFramework) {
+    // AI framework: models exist for compatibility, score 70+ base
+    const errorCount = issues.filter(i => i.severity === 'error').length;
+    score = Math.max(70, 100 - errorCount * 20);
+  } else {
+    const errorCount = issues.filter(i => i.severity === 'error').length;
+    score = Math.max(0, 100 - errorCount * 20);
+  }
+
+  let summary = issues.length === 0
+    ? 'all model references current'
+    : `${issues.length} deprecated model${issues.length > 1 ? 's' : ''} found`;
+  if (aiFramework) {
+    summary += ' — AI framework detected — model references are expected';
+  }
 
   return {
     name: 'models',
     score: Math.min(100, score),
     maxScore: 100,
     issues,
-    summary: issues.length === 0 ? 'all model references current' : `${issues.length} deprecated model${issues.length > 1 ? 's' : ''} found`,
+    summary,
   };
 }
 
