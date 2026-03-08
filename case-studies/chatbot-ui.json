@@ -1,9 +1,9 @@
 {
   "project": "chatbot-ui",
-  "version": "1.4.0",
-  "score": 56,
-  "grade": "D",
-  "fixableIssues": 130,
+  "version": "1.6.1",
+  "score": 71,
+  "grade": "C",
+  "fixableIssues": 119,
   "categories": [
     {
       "name": "security",
@@ -5810,28 +5810,14 @@
     },
     {
       "name": "deps",
-      "score": 0,
+      "score": 100,
       "weight": 0.15,
       "checks": [
         {
           "name": "deps",
-          "score": 0,
+          "score": 100,
           "maxScore": 100,
           "issues": [
-            {
-              "severity": "error",
-              "message": "possible typosquat: \"ai\" is 2 edits from \"joi\"",
-              "file": "package.json",
-              "fixable": true,
-              "fixHint": "did you mean \"joi\"?"
-            },
-            {
-              "severity": "error",
-              "message": "possible typosquat: \"clsx\" is 2 edits from \"tsx\"",
-              "file": "package.json",
-              "fixable": true,
-              "fixHint": "did you mean \"tsx\"?"
-            },
             {
               "severity": "info",
               "message": "unused dependency: \"@azure/openai\" is declared but never imported",
@@ -6013,80 +5999,12 @@
               "file": "package.json",
               "fixable": true,
               "fixHint": "remove from package.json"
-            },
-            {
-              "severity": "warning",
-              "message": "phantom import: \"@/components\" is imported but not in package.json",
-              "fixable": true,
-              "fixHint": "run: npm install @/components"
-            },
-            {
-              "severity": "warning",
-              "message": "phantom import: \"@/context\" is imported but not in package.json",
-              "fixable": true,
-              "fixHint": "run: npm install @/context"
-            },
-            {
-              "severity": "warning",
-              "message": "phantom import: \"@/lib\" is imported but not in package.json",
-              "fixable": true,
-              "fixHint": "run: npm install @/lib"
-            },
-            {
-              "severity": "warning",
-              "message": "phantom import: \"@/db\" is imported but not in package.json",
-              "fixable": true,
-              "fixHint": "run: npm install @/db"
-            },
-            {
-              "severity": "warning",
-              "message": "phantom import: \"@/types\" is imported but not in package.json",
-              "fixable": true,
-              "fixHint": "run: npm install @/types"
-            },
-            {
-              "severity": "warning",
-              "message": "phantom import: \"@/supabase\" is imported but not in package.json",
-              "fixable": true,
-              "fixHint": "run: npm install @/supabase"
-            },
-            {
-              "severity": "warning",
-              "message": "phantom import: \"@/app\" is imported but not in package.json",
-              "fixable": true,
-              "fixHint": "run: npm install @/app"
-            },
-            {
-              "severity": "warning",
-              "message": "phantom import: \"@/public\" is imported but not in package.json",
-              "fixable": true,
-              "fixHint": "run: npm install @/public"
-            },
-            {
-              "severity": "warning",
-              "message": "phantom import: \"@/i18nConfig\" is imported but not in package.json",
-              "fixable": true,
-              "fixHint": "run: npm install @/i18nConfig"
             }
           ],
-          "summary": "97 dependencies: 2 errors, 9 warnings, 26 info"
+          "summary": "97 dependencies: 26 info"
         }
       ],
       "issues": [
-        {
-          "severity": "error",
-          "message": "possible typosquat: \"ai\" is 2 edits from \"joi\"",
-          "file": "package.json",
-          "fixable": true,
-          "fixHint": "did you mean \"joi\"?"
-        },
-        {
-          "severity": "error",
-          "message": "possible typosquat: \"clsx\" is 2 edits from \"tsx\"",
-          "file": "package.json",
-          "fixable": true,
-          "fixHint": "did you mean \"tsx\"?"
-        },
         {
           "severity": "info",
           "message": "unused dependency: \"@azure/openai\" is declared but never imported",
@@ -6268,60 +6186,6 @@
           "file": "package.json",
           "fixable": true,
           "fixHint": "remove from package.json"
-        },
-        {
-          "severity": "warning",
-          "message": "phantom import: \"@/components\" is imported but not in package.json",
-          "fixable": true,
-          "fixHint": "run: npm install @/components"
-        },
-        {
-          "severity": "warning",
-          "message": "phantom import: \"@/context\" is imported but not in package.json",
-          "fixable": true,
-          "fixHint": "run: npm install @/context"
-        },
-        {
-          "severity": "warning",
-          "message": "phantom import: \"@/lib\" is imported but not in package.json",
-          "fixable": true,
-          "fixHint": "run: npm install @/lib"
-        },
-        {
-          "severity": "warning",
-          "message": "phantom import: \"@/db\" is imported but not in package.json",
-          "fixable": true,
-          "fixHint": "run: npm install @/db"
-        },
-        {
-          "severity": "warning",
-          "message": "phantom import: \"@/types\" is imported but not in package.json",
-          "fixable": true,
-          "fixHint": "run: npm install @/types"
-        },
-        {
-          "severity": "warning",
-          "message": "phantom import: \"@/supabase\" is imported but not in package.json",
-          "fixable": true,
-          "fixHint": "run: npm install @/supabase"
-        },
-        {
-          "severity": "warning",
-          "message": "phantom import: \"@/app\" is imported but not in package.json",
-          "fixable": true,
-          "fixHint": "run: npm install @/app"
-        },
-        {
-          "severity": "warning",
-          "message": "phantom import: \"@/public\" is imported but not in package.json",
-          "fixable": true,
-          "fixHint": "run: npm install @/public"
-        },
-        {
-          "severity": "warning",
-          "message": "phantom import: \"@/i18nConfig\" is imported but not in package.json",
-          "fixable": true,
-          "fixHint": "run: npm install @/i18nConfig"
         }
       ]
     }

@@ -1,6 +1,6 @@
 {
   "project": "pydantic-ai",
-  "version": "1.4.0",
+  "version": "1.6.1",
   "score": 76,
   "grade": "B",
   "fixableIssues": 168,
@@ -5259,13 +5259,6 @@
             },
             {
               "severity": "warning",
-              "message": "Thin file: clai/clai/__init__.py (7 non-empty lines)",
-              "file": "clai/clai/__init__.py",
-              "fixable": false,
-              "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-            },
-            {
-              "severity": "warning",
               "message": "Thin file: clai/clai/__main__.py (4 non-empty lines)",
               "file": "clai/clai/__main__.py",
               "fixable": false,
@@ -5720,23 +5713,9 @@
               "fixHint": "Agent claimed to create/modify this file but it has minimal content"
             },
             {
-              "severity": "warning",
-              "message": "Thin file: examples/pydantic_ai_examples/evals/__init__.py (2 non-empty lines)",
-              "file": "examples/pydantic_ai_examples/evals/__init__.py",
-              "fixable": false,
-              "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-            },
-            {
               "severity": "error",
               "message": "Empty file: examples/pydantic_ai_examples/py.typed",
               "file": "examples/pydantic_ai_examples/py.typed",
-              "fixable": false,
-              "fixHint": "Agent claimed to create this file but it is empty"
-            },
-            {
-              "severity": "error",
-              "message": "Empty file: examples/pydantic_ai_examples/slack_lead_qualifier/__init__.py",
-              "file": "examples/pydantic_ai_examples/slack_lead_qualifier/__init__.py",
               "fixable": false,
               "fixHint": "Agent claimed to create this file but it is empty"
             },
@@ -5755,27 +5734,6 @@
               "fixHint": "Agent claimed to create/modify this file but it has minimal content"
             },
             {
-              "severity": "error",
-              "message": "Empty file: pydantic_ai_slim/pydantic_ai/common_tools/__init__.py",
-              "file": "pydantic_ai_slim/pydantic_ai/common_tools/__init__.py",
-              "fixable": false,
-              "fixHint": "Agent claimed to create this file but it is empty"
-            },
-            {
-              "severity": "error",
-              "message": "Empty file: pydantic_ai_slim/pydantic_ai/durable_exec/__init__.py",
-              "file": "pydantic_ai_slim/pydantic_ai/durable_exec/__init__.py",
-              "fixable": false,
-              "fixHint": "Agent claimed to create this file but it is empty"
-            },
-            {
-              "severity": "warning",
-              "message": "Thin file: pydantic_ai_slim/pydantic_ai/durable_exec/dbos/__init__.py (5 non-empty lines)",
-              "file": "pydantic_ai_slim/pydantic_ai/durable_exec/dbos/__init__.py",
-              "fixable": false,
-              "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-            },
-            {
               "severity": "warning",
               "message": "Thin file: pydantic_ai_slim/pydantic_ai/durable_exec/dbos/_utils.py (7 non-empty lines)",
               "file": "pydantic_ai_slim/pydantic_ai/durable_exec/dbos/_utils.py",
@@ -5788,13 +5746,6 @@
               "file": "pydantic_ai_slim/pydantic_ai/durable_exec/temporal/_workflow.py",
               "fixable": false,
               "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-            },
-            {
-              "severity": "error",
-              "message": "Empty file: pydantic_ai_slim/pydantic_ai/ext/__init__.py",
-              "file": "pydantic_ai_slim/pydantic_ai/ext/__init__.py",
-              "fixable": false,
-              "fixHint": "Agent claimed to create this file but it is empty"
             },
             {
               "severity": "warning",
@@ -5854,29 +5805,8 @@
             },
             {
               "severity": "warning",
-              "message": "Thin file: pydantic_ai_slim/pydantic_ai/ui/_web/__init__.py (8 non-empty lines)",
-              "file": "pydantic_ai_slim/pydantic_ai/ui/_web/__init__.py",
-              "fixable": false,
-              "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-            },
-            {
-              "severity": "warning",
-              "message": "Thin file: pydantic_ai_slim/pydantic_ai/ui/ag_ui/__init__.py (7 non-empty lines)",
-              "file": "pydantic_ai_slim/pydantic_ai/ui/ag_ui/__init__.py",
-              "fixable": false,
-              "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-            },
-            {
-              "severity": "warning",
               "message": "Thin file: pydantic_ai_slim/pydantic_ai/ui/vercel_ai/_models.py (7 non-empty lines)",
               "file": "pydantic_ai_slim/pydantic_ai/ui/vercel_ai/_models.py",
-              "fixable": false,
-              "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-            },
-            {
-              "severity": "warning",
-              "message": "Thin file: pydantic_evals/pydantic_evals/otel/__init__.py (6 non-empty lines)",
-              "file": "pydantic_evals/pydantic_evals/otel/__init__.py",
               "fixable": false,
               "fixHint": "Agent claimed to create/modify this file but it has minimal content"
             },
@@ -5898,13 +5828,6 @@
               "severity": "error",
               "message": "Empty file: pydantic_graph/pydantic_graph/py.typed",
               "file": "pydantic_graph/pydantic_graph/py.typed",
-              "fixable": false,
-              "fixHint": "Agent claimed to create this file but it is empty"
-            },
-            {
-              "severity": "error",
-              "message": "Empty file: tests/__init__.py",
-              "file": "tests/__init__.py",
               "fixable": false,
               "fixHint": "Agent claimed to create this file but it is empty"
             },
@@ -6946,13 +6869,6 @@
             },
             {
               "severity": "error",
-              "message": "Empty file: tests/evals/__init__.py",
-              "file": "tests/evals/__init__.py",
-              "fixable": false,
-              "fixHint": "Agent claimed to create this file but it is empty"
-            },
-            {
-              "severity": "error",
               "message": "Test file has no assertions: tests/evals/utils.py",
               "file": "tests/evals/utils.py",
               "fixable": false,
@@ -6995,45 +6911,10 @@
             },
             {
               "severity": "error",
-              "message": "Empty file: tests/ext/__init__.py",
-              "file": "tests/ext/__init__.py",
-              "fixable": false,
-              "fixHint": "Agent claimed to create this file but it is empty"
-            },
-            {
-              "severity": "error",
-              "message": "Empty file: tests/graph/__init__.py",
-              "file": "tests/graph/__init__.py",
-              "fixable": false,
-              "fixHint": "Agent claimed to create this file but it is empty"
-            },
-            {
-              "severity": "error",
-              "message": "Empty file: tests/graph/beta/__init__.py",
-              "file": "tests/graph/beta/__init__.py",
-              "fixable": false,
-              "fixHint": "Agent claimed to create this file but it is empty"
-            },
-            {
-              "severity": "error",
               "message": "Test file has no assertions: tests/mcp_server.py",
               "file": "tests/mcp_server.py",
               "fixable": false,
               "fixHint": "Test file exists but contains no expect(), assert(), or test() calls"
-            },
-            {
-              "severity": "error",
-              "message": "Empty file: tests/models/__init__.py",
-              "file": "tests/models/__init__.py",
-              "fixable": false,
-              "fixHint": "Agent claimed to create this file but it is empty"
-            },
-            {
-              "severity": "warning",
-              "message": "Thin file: tests/models/anthropic/__init__.py (1 non-empty lines)",
-              "file": "tests/models/anthropic/__init__.py",
-              "fixable": false,
-              "fixHint": "Agent claimed to create/modify this file but it has minimal content"
             },
             {
               "severity": "error",
@@ -10019,20 +9900,6 @@
             },
             {
               "severity": "error",
-              "message": "Empty file: tests/profiles/__init__.py",
-              "file": "tests/profiles/__init__.py",
-              "fixable": false,
-              "fixHint": "Agent claimed to create this file but it is empty"
-            },
-            {
-              "severity": "error",
-              "message": "Empty file: tests/providers/__init__.py",
-              "file": "tests/providers/__init__.py",
-              "fixable": false,
-              "fixHint": "Agent claimed to create this file but it is empty"
-            },
-            {
-              "severity": "error",
               "message": "Test file has no assertions: tests/providers/cassettes/test_azure/test_azure_provider_call.yaml",
               "file": "tests/providers/cassettes/test_azure/test_azure_provider_call.yaml",
               "fixable": false,
@@ -10109,7 +9976,7 @@
               "fixHint": "Test file exists but contains no expect(), assert(), or test() calls"
             }
           ],
-          "summary": "695 claims failed verification (584 passed)"
+          "summary": "676 claims failed verification (603 passed) (python project detected — some checks have reduced scope)"
         },
         {
           "name": "tests",
@@ -10240,13 +10107,6 @@
           "severity": "warning",
           "message": "Thin file: .github/ISSUE_TEMPLATE/config.yml (5 non-empty lines)",
           "file": ".github/ISSUE_TEMPLATE/config.yml",
-          "fixable": false,
-          "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-        },
-        {
-          "severity": "warning",
-          "message": "Thin file: clai/clai/__init__.py (7 non-empty lines)",
-          "file": "clai/clai/__init__.py",
           "fixable": false,
           "fixHint": "Agent claimed to create/modify this file but it has minimal content"
         },
@@ -10706,23 +10566,9 @@
           "fixHint": "Agent claimed to create/modify this file but it has minimal content"
         },
         {
-          "severity": "warning",
-          "message": "Thin file: examples/pydantic_ai_examples/evals/__init__.py (2 non-empty lines)",
-          "file": "examples/pydantic_ai_examples/evals/__init__.py",
-          "fixable": false,
-          "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-        },
-        {
           "severity": "error",
           "message": "Empty file: examples/pydantic_ai_examples/py.typed",
           "file": "examples/pydantic_ai_examples/py.typed",
-          "fixable": false,
-          "fixHint": "Agent claimed to create this file but it is empty"
-        },
-        {
-          "severity": "error",
-          "message": "Empty file: examples/pydantic_ai_examples/slack_lead_qualifier/__init__.py",
-          "file": "examples/pydantic_ai_examples/slack_lead_qualifier/__init__.py",
           "fixable": false,
           "fixHint": "Agent claimed to create this file but it is empty"
         },
@@ -10741,27 +10587,6 @@
           "fixHint": "Agent claimed to create/modify this file but it has minimal content"
         },
         {
-          "severity": "error",
-          "message": "Empty file: pydantic_ai_slim/pydantic_ai/common_tools/__init__.py",
-          "file": "pydantic_ai_slim/pydantic_ai/common_tools/__init__.py",
-          "fixable": false,
-          "fixHint": "Agent claimed to create this file but it is empty"
-        },
-        {
-          "severity": "error",
-          "message": "Empty file: pydantic_ai_slim/pydantic_ai/durable_exec/__init__.py",
-          "file": "pydantic_ai_slim/pydantic_ai/durable_exec/__init__.py",
-          "fixable": false,
-          "fixHint": "Agent claimed to create this file but it is empty"
-        },
-        {
-          "severity": "warning",
-          "message": "Thin file: pydantic_ai_slim/pydantic_ai/durable_exec/dbos/__init__.py (5 non-empty lines)",
-          "file": "pydantic_ai_slim/pydantic_ai/durable_exec/dbos/__init__.py",
-          "fixable": false,
-          "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-        },
-        {
           "severity": "warning",
           "message": "Thin file: pydantic_ai_slim/pydantic_ai/durable_exec/dbos/_utils.py (7 non-empty lines)",
           "file": "pydantic_ai_slim/pydantic_ai/durable_exec/dbos/_utils.py",
@@ -10774,13 +10599,6 @@
           "file": "pydantic_ai_slim/pydantic_ai/durable_exec/temporal/_workflow.py",
           "fixable": false,
           "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-        },
-        {
-          "severity": "error",
-          "message": "Empty file: pydantic_ai_slim/pydantic_ai/ext/__init__.py",
-          "file": "pydantic_ai_slim/pydantic_ai/ext/__init__.py",
-          "fixable": false,
-          "fixHint": "Agent claimed to create this file but it is empty"
         },
         {
           "severity": "warning",
@@ -10840,29 +10658,8 @@
         },
         {
           "severity": "warning",
-          "message": "Thin file: pydantic_ai_slim/pydantic_ai/ui/_web/__init__.py (8 non-empty lines)",
-          "file": "pydantic_ai_slim/pydantic_ai/ui/_web/__init__.py",
-          "fixable": false,
-          "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-        },
-        {
-          "severity": "warning",
-          "message": "Thin file: pydantic_ai_slim/pydantic_ai/ui/ag_ui/__init__.py (7 non-empty lines)",
-          "file": "pydantic_ai_slim/pydantic_ai/ui/ag_ui/__init__.py",
-          "fixable": false,
-          "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-        },
-        {
-          "severity": "warning",
           "message": "Thin file: pydantic_ai_slim/pydantic_ai/ui/vercel_ai/_models.py (7 non-empty lines)",
           "file": "pydantic_ai_slim/pydantic_ai/ui/vercel_ai/_models.py",
-          "fixable": false,
-          "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-        },
-        {
-          "severity": "warning",
-          "message": "Thin file: pydantic_evals/pydantic_evals/otel/__init__.py (6 non-empty lines)",
-          "file": "pydantic_evals/pydantic_evals/otel/__init__.py",
           "fixable": false,
           "fixHint": "Agent claimed to create/modify this file but it has minimal content"
         },
@@ -10884,13 +10681,6 @@
           "severity": "error",
           "message": "Empty file: pydantic_graph/pydantic_graph/py.typed",
           "file": "pydantic_graph/pydantic_graph/py.typed",
-          "fixable": false,
-          "fixHint": "Agent claimed to create this file but it is empty"
-        },
-        {
-          "severity": "error",
-          "message": "Empty file: tests/__init__.py",
-          "file": "tests/__init__.py",
           "fixable": false,
           "fixHint": "Agent claimed to create this file but it is empty"
         },
@@ -11932,13 +11722,6 @@
         },
         {
           "severity": "error",
-          "message": "Empty file: tests/evals/__init__.py",
-          "file": "tests/evals/__init__.py",
-          "fixable": false,
-          "fixHint": "Agent claimed to create this file but it is empty"
-        },
-        {
-          "severity": "error",
           "message": "Test file has no assertions: tests/evals/utils.py",
           "file": "tests/evals/utils.py",
           "fixable": false,
@@ -11981,45 +11764,10 @@
         },
         {
           "severity": "error",
-          "message": "Empty file: tests/ext/__init__.py",
-          "file": "tests/ext/__init__.py",
-          "fixable": false,
-          "fixHint": "Agent claimed to create this file but it is empty"
-        },
-        {
-          "severity": "error",
-          "message": "Empty file: tests/graph/__init__.py",
-          "file": "tests/graph/__init__.py",
-          "fixable": false,
-          "fixHint": "Agent claimed to create this file but it is empty"
-        },
-        {
-          "severity": "error",
-          "message": "Empty file: tests/graph/beta/__init__.py",
-          "file": "tests/graph/beta/__init__.py",
-          "fixable": false,
-          "fixHint": "Agent claimed to create this file but it is empty"
-        },
-        {
-          "severity": "error",
           "message": "Test file has no assertions: tests/mcp_server.py",
           "file": "tests/mcp_server.py",
           "fixable": false,
           "fixHint": "Test file exists but contains no expect(), assert(), or test() calls"
-        },
-        {
-          "severity": "error",
-          "message": "Empty file: tests/models/__init__.py",
-          "file": "tests/models/__init__.py",
-          "fixable": false,
-          "fixHint": "Agent claimed to create this file but it is empty"
-        },
-        {
-          "severity": "warning",
-          "message": "Thin file: tests/models/anthropic/__init__.py (1 non-empty lines)",
-          "file": "tests/models/anthropic/__init__.py",
-          "fixable": false,
-          "fixHint": "Agent claimed to create/modify this file but it has minimal content"
         },
         {
           "severity": "error",
@@ -15002,20 +14750,6 @@
           "file": "tests/parts_from_messages.py",
           "fixable": false,
           "fixHint": "Test file exists but contains no expect(), assert(), or test() calls"
-        },
-        {
-          "severity": "error",
-          "message": "Empty file: tests/profiles/__init__.py",
-          "file": "tests/profiles/__init__.py",
-          "fixable": false,
-          "fixHint": "Agent claimed to create this file but it is empty"
-        },
-        {
-          "severity": "error",
-          "message": "Empty file: tests/providers/__init__.py",
-          "file": "tests/providers/__init__.py",
-          "fixable": false,
-          "fixHint": "Agent claimed to create this file but it is empty"
         },
         {
           "severity": "error",
