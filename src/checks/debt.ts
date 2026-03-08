@@ -199,14 +199,17 @@ function findDuplicates(allFuncs: FuncInfo[]): Issue[] {
     });
   }
 
-  // Similarity check for non-exact matches
+  // Similarity check for non-exact matches (capped to avoid O(n²) explosion on large repos)
   const singles = allFuncs.filter(fn => {
     const g = groups.get(fn.hash);
     return !g || g.length < 2;
   });
 
-  for (let i = 0; i < singles.length; i++) {
-    for (let j = i + 1; j < singles.length; j++) {
+  // Cap at 500 functions for similarity — O(n²) with levenshtein is too expensive above that
+  const singlesCapped = singles.length > 500 ? singles.slice(0, 500) : singles;
+
+  for (let i = 0; i < singlesCapped.length; i++) {
+    for (let j = i + 1; j < singlesCapped.length; j++) {
       const a = singles[i];
       const b = singles[j];
       // Skip very short normalized bodies

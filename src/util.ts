@@ -42,7 +42,7 @@ export function fileExists(path: string): boolean {
   return existsSync(path);
 }
 
-export function walkFiles(dir: string, ignore: string[] = [], maxFiles?: number): string[] {
+export function walkFiles(dir: string, ignore: string[] = [], maxFiles: number = 2000): string[] {
   const results: string[] = [];
   const defaultIgnore = ['node_modules', '.git', 'dist', 'build', '.next', 'coverage', 'vendor', '__pycache__', '.venv', 'venv'];
   const allIgnore = [...defaultIgnore, ...ignore];
