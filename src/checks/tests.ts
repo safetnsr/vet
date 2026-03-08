@@ -1,6 +1,6 @@
 import { join, basename, dirname } from 'node:path';
-import { readFileSync } from 'node:fs';
 import { walkFiles } from '../util.js';
+import { cachedRead } from '../file-cache.js';
 import type { CheckResult, Issue } from '../types.js';
 
 const TEST_FILE_RE = /\.(test|spec)\.(ts|js|tsx|jsx)$/;
@@ -213,7 +213,7 @@ export function checkTests(cwd: string, ignore: string[]): CheckResult {
   for (const rel of testFiles) {
     let content: string;
     try {
-      content = readFileSync(join(cwd, rel), 'utf-8');
+      content = cachedRead(join(cwd, rel));
     } catch {
       continue;
     }

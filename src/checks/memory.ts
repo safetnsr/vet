@@ -1,7 +1,8 @@
 import { join, resolve } from 'node:path';
-import { existsSync, readdirSync, statSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import type { CheckResult, Issue } from '../types.js';
 import { readFile } from '../util.js';
+import { cachedRead } from '../file-cache.js';
 import { detectWorkspacePackages } from './deps.js';
 
 // ── Memory file targets ──────────────────────────────────────────────────────
@@ -161,7 +162,7 @@ export function checkMemory(cwd: string): CheckResult {
   const allDeps = new Set<string>();
   if (existsSync(pkgPath)) {
     try {
-      const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+      const pkg = JSON.parse(cachedRead(pkgPath));
       // Include the package's own name
       if (pkg.name) allDeps.add(pkg.name);
       for (const key of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {

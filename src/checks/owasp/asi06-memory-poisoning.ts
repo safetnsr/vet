@@ -1,6 +1,7 @@
 import { join } from 'node:path';
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { readTextFile, type OwaspFinding } from './shared.js';
+import { cachedRead } from '../../file-cache.js';
 
 // ── ASI06 — Memory and Context Poisoning ─────────────────────────────────────
 
@@ -21,7 +22,7 @@ export function checkASI06(cwd: string): { findings: OwaspFinding[]; deduction: 
   const gitignorePath = join(cwd, '.gitignore');
   let gitignoreContent = '';
   try {
-    gitignoreContent = readFileSync(gitignorePath, 'utf-8');
+    gitignoreContent = cachedRead(gitignorePath);
   } catch { /* intentional: .gitignore may not exist */ }
 
   for (const memPath of memoryPaths) {

@@ -1,10 +1,11 @@
-import { existsSync, readdirSync, readFileSync, statSync, createReadStream } from 'node:fs';
+import { existsSync, readdirSync, statSync, createReadStream } from 'node:fs';
 import { join, relative, extname, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { execSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import type { CheckResult, Issue } from '../types.js';
 import { collectDirFiles } from '../util.js';
+import { cachedRead } from '../file-cache.js';
 
 // ── Shannon entropy ──────────────────────────────────────────────────────────
 
@@ -203,7 +204,7 @@ function findEnvFiles(dir: string, maxDepth = 3, depth = 0): string[] {
 function scanEnvFile(filePath: string): { provider: string; key: string; costEstimate: string; gitTracked: boolean; file: string }[] {
   const findings: { provider: string; key: string; costEstimate: string; gitTracked: boolean; file: string }[] = [];
   try {
-    const lines = readFileSync(filePath, 'utf-8').split('\n');
+    const lines = cachedRead(filePath).split('\n');
     const gitTracked = isGitTracked(filePath);
     for (const line of lines) {
       if (line.trimStart().startsWith('#')) continue;

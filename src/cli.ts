@@ -23,6 +23,7 @@ import { checkCompact, runCompactCommand } from './checks/compact.js';
 import { score } from './scorer.js';
 import { toGrade } from './categories.js';
 import { reportPretty, reportJSON, reportBadge } from './reporter.js';
+import { clearCache } from './file-cache.js';
 import type { VetConfig, CheckResult } from './types.js';
 
 const args = process.argv.slice(2);
@@ -82,7 +83,7 @@ if (flags.has('--help') || flags.has('-h')) {
     --watch       re-run on file changes
     --json        JSON output
     --pretty      force pretty output (even in pipes)
-    --max-files N limit file scanning (default: 2000)
+    --max-files N limit file scanning (default: unlimited)
     -h, --help    show this help
     -v, --version show version
 `);
@@ -109,7 +110,7 @@ const isWatch = flags.has('--watch');
 const isBadge = flags.has('--badge');
 const isJSON = flags.has('--json') || (!process.stdout.isTTY && !flags.has('--pretty') && !isBadge);
 const since = flagMap.get('since');
-const maxFiles = parseInt(flagMap.get('max-files') || '2000', 10) || 2000;
+const maxFiles = flagMap.has('max-files') ? (parseInt(flagMap.get('max-files')!, 10) || 0) : 0;
 
 // Load config
 let config: VetConfig = {};
@@ -238,61 +239,57 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
   try {
 
   // Check file count and warn if large
-  const { walkFiles: wf } = await import('./util.js');
-  const allProjectFiles = wf(cwd, [], maxFiles);
-  if (allProjectFiles.length >= maxFiles) {
-    if (!isJSON) console.log(`  ${c.yellow}Large project (${allProjectFiles.length}+ files) — scanning first ${maxFiles} files. Use --max-files to increase.${c.reset}\n`);
+  if (maxFiles > 0) {
+    const { walkFiles: wf } = await import('./util.js');
+    const allProjectFiles = wf(cwd, [], maxFiles);
+    if (allProjectFiles.length >= maxFiles) {
+      if (!isJSON) console.log(`  ${c.yellow}Large project (${allProjectFiles.length}+ files) — scanning first ${maxFiles} files. Use --max-files to increase.${c.reset}\n`);
+    }
   }
 
-  // Run all checks, grouped into categories
-  // Security: scan, secrets, config, models, owasp, permissions
-  const [scanResult, secretsResult, configResult, modelsResult, owaspResult] = await Promise.all([
+  // Run ALL independent checks in parallel
+  const [
+    scanResult,
+    secretsResult,
+    configResult,
+    modelsResult,
+    owaspResult,
+    permissionsResult,
+    integrityResult,
+    readyResult,
+    debtResult,
+    depsResult,
+    receiptResult,
+    compactResult,
+    memoryResult,
+    verifyResult,
+    testsResult,
+  ] = await Promise.all([
     withTimeout('scan', () => checkScan(cwd)),
     withTimeout('secrets', () => checkSecrets(cwd)),
     withTimeout('config', () => checkConfig(cwd, ignore)),
     withTimeout('models', () => checkModels(cwd, ignore)),
     withTimeout('owasp', () => checkOwasp(cwd)),
-  ]);
-  const permissionsResult = await withTimeout('permissions', () => checkPermissions(cwd));
-
-  if (Date.now() - globalStart > GLOBAL_TIMEOUT) {
-    if (!isJSON) console.error(`  ${c.yellow}⚠ global timeout (${GLOBAL_TIMEOUT / 1000}s) reached — returning partial results${c.reset}`);
-    return score(cwd, { security: [scanResult, secretsResult, configResult, modelsResult, owaspResult, permissionsResult], integrity: [], debt: [], deps: [] });
-  }
-
-  // Integrity: diff, integrity checks
-  const diffResult = await withTimeout('diff', () => checkDiff(cwd, { since }));
-  const integrityResult = await withTimeout('integrity', () => checkIntegrity(cwd, ignore));
-
-  // Debt: ready, history, debt
-  const [readyResult, debtResult] = await Promise.all([
+    withTimeout('permissions', () => checkPermissions(cwd)),
+    withTimeout('integrity', () => checkIntegrity(cwd, ignore)),
     withTimeout('ready', () => checkReady(cwd, ignore)),
     withTimeout('debt', () => checkDebt(cwd, ignore)),
+    withTimeout('deps', () => checkDeps(cwd)),
+    withTimeout('receipt', () => checkReceipt(cwd)),
+    withTimeout('compact', () => checkCompact(cwd)),
+    withTimeout('memory', () => checkMemory(cwd)),
+    withTimeout('verify', () => checkVerify(cwd, since)),
+    withTimeout('tests', () => checkTests(cwd, ignore)),
   ]);
-  const historyResult = await withTimeout('history', () => checkHistory(cwd));
 
-  if (Date.now() - globalStart > GLOBAL_TIMEOUT) {
-    if (!isJSON) console.error(`  ${c.yellow}⚠ global timeout (${GLOBAL_TIMEOUT / 1000}s) reached — returning partial results${c.reset}`);
-    return score(cwd, { security: [scanResult, secretsResult, configResult, modelsResult, owaspResult, permissionsResult], integrity: [diffResult, integrityResult], debt: [readyResult, historyResult, debtResult], deps: [] });
-  }
+  // Git-dependent checks (diff + history) — parallel with each other
+  const [diffResult, historyResult] = await Promise.all([
+    withTimeout('diff', () => checkDiff(cwd, { since })),
+    withTimeout('history', () => checkHistory(cwd)),
+  ]);
 
-  // Deps: deps
-  const depsResult = await withTimeout('deps', () => checkDeps(cwd));
-
-  // Receipt is informational — fold into integrity category but keep low weight
-  const receiptResult = await withTimeout('receipt', () => checkReceipt(cwd));
-
-  // Compact: compaction forensics
-  const compactResult = await withTimeout('compact', () => checkCompact(cwd));
-
-  // Memory: stale facts in agent memory files
-  const memoryResult = await withTimeout('memory', () => checkMemory(cwd));
-
-  // Verify: agent claim validation
-  const verifyResult = await withTimeout('verify', () => checkVerify(cwd, since));
-
-  // Tests: test theater detection
-  const testsResult = await withTimeout('tests', () => checkTests(cwd, ignore));
+  // Clear file cache after all checks complete
+  clearCache();
 
   return score(cwd, {
     security: [scanResult, secretsResult, configResult, modelsResult, owaspResult, permissionsResult],

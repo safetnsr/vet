@@ -1,6 +1,7 @@
 import { join } from 'node:path';
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { walkFiles, readFile } from '../util.js';
+import { cachedRead } from '../file-cache.js';
 import type { CheckResult, Issue } from '../types.js';
 
 // ── Top packages list (~150 popular npm packages) ────────────────────────────
@@ -392,7 +393,7 @@ export async function checkDeps(cwd: string): Promise<CheckResult> {
   const importedPackages = new Set<string>();
   for (const file of sourceFiles) {
     try {
-      const content = readFileSync(join(cwd, file), 'utf-8');
+      const content = cachedRead(join(cwd, file));
       const rawImports = extractImports(content);
       for (const imp of rawImports) {
         if (isBuiltin(imp)) continue;

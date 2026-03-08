@@ -1,6 +1,7 @@
 import { join, relative } from 'node:path';
-import { readFileSync, statSync, existsSync } from 'node:fs';
+import { statSync, existsSync } from 'node:fs';
 import { isTextFile as utilIsTextFile, collectDirFiles as utilCollectDirFiles } from '../util.js';
+import { cachedRead } from '../file-cache.js';
 import type { CheckResult, Issue } from '../types.js';
 
 // ── Pattern definitions ──────────────────────────────────────────────────────
@@ -249,7 +250,7 @@ export function checkScan(cwd: string): CheckResult {
   for (const filePath of configFiles) {
     if (!isTextFile(filePath)) continue;
     try {
-      const content = readFileSync(filePath, 'utf-8');
+      const content = cachedRead(filePath);
       const relPath = relative(cwd, filePath);
       filesScanned++;
       findings.push(...scanContent(content, relPath));

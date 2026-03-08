@@ -1,6 +1,7 @@
 import { join } from 'node:path';
-import { readFileSync, statSync, existsSync } from 'node:fs';
+import { statSync, existsSync } from 'node:fs';
 import { isTextFile, collectDirFiles } from '../../util.js';
+import { cachedRead } from '../../file-cache.js';
 
 // ── Agent config file targets ─────────────────────────────────────────────────
 
@@ -58,7 +59,7 @@ export function collectMcpConfigFiles(cwd: string): string[] {
 export function readTextFile(filePath: string): string | null {
   if (!isTextFile(filePath)) return null;
   try {
-    return readFileSync(filePath, 'utf-8');
+    return cachedRead(filePath);
   } catch { /* intentional: resolver may fail on unreadable files */ }
   return null;
 }

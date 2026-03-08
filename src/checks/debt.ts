@@ -59,25 +59,86 @@ function simpleHash(s: string): string {
   return h.toString(36);
 }
 
+/** Levenshtein distance (optimized single-row DP, with early exit) */
+function levenshtein(a: string, b: string, maxDist: number): number {
+  if (a === b) return 0;
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+
+  // Ensure a is shorter for memory efficiency
+  if (a.length > b.length) { const t = a; a = b; b = t; }
+
+  const aLen = a.length;
+  const bLen = b.length;
+
+  // For very long strings, use sampled comparison instead of full DP
+  if (aLen > 500) {
+    return sampledDistance(a, b, maxDist);
+  }
+
+  const row = new Uint32Array(aLen + 1);
+
+  for (let i = 0; i <= aLen; i++) row[i] = i;
+
+  for (let j = 1; j <= bLen; j++) {
+    let prev = row[0];
+    row[0] = j;
+    let rowMin = j;
+    for (let i = 1; i <= aLen; i++) {
+      const cur = row[i];
+      if (a[i - 1] === b[j - 1]) {
+        row[i] = prev;
+      } else {
+        row[i] = 1 + Math.min(prev, row[i], row[i - 1]);
+      }
+      prev = cur;
+      if (row[i] < rowMin) rowMin = row[i];
+    }
+    // Early exit if minimum in this row already exceeds threshold
+    if (rowMin > maxDist) return rowMin;
+  }
+  return row[aLen];
+}
+
+/** Fast sampled distance for long strings — compare chunks instead of full DP */
+function sampledDistance(a: string, b: string, maxDist: number): number {
+  const maxLen = Math.max(a.length, b.length);
+  // Sample 5 chunks of 80 chars each from evenly spaced positions
+  const chunkSize = 80;
+  const samples = 5;
+  let totalDiff = 0;
+  let totalSampled = 0;
+
+  for (let s = 0; s < samples; s++) {
+    const pos = Math.floor((s / samples) * (Math.min(a.length, b.length) - chunkSize));
+    if (pos < 0) continue;
+    const ca = a.substring(pos, pos + chunkSize);
+    const cb = b.substring(pos, pos + chunkSize);
+    let diff = 0;
+    for (let i = 0; i < chunkSize; i++) {
+      if (ca[i] !== cb[i]) diff++;
+    }
+    totalDiff += diff;
+    totalSampled += chunkSize;
+  }
+
+  if (totalSampled === 0) return maxLen;
+  // Extrapolate
+  const estDist = Math.round((totalDiff / totalSampled) * maxLen);
+  return estDist;
+}
+
 /** Similarity ratio between two strings (0-1) */
 function similarity(a: string, b: string): number {
   if (a === b) return 1;
-  const longer = a.length >= b.length ? a : b;
-  const shorter = a.length >= b.length ? b : a;
-  if (longer.length === 0) return 1;
-  // Count matching characters in sequence
-  let matches = 0;
-  const used = new Array(longer.length).fill(false);
-  for (let i = 0; i < shorter.length; i++) {
-    for (let j = 0; j < longer.length; j++) {
-      if (!used[j] && shorter[i] === longer[j]) {
-        matches++;
-        used[j] = true;
-        break;
-      }
-    }
-  }
-  return matches / longer.length;
+  const maxLen = Math.max(a.length, b.length);
+  if (maxLen === 0) return 1;
+  // Quick reject: if length diff alone makes similarity impossible
+  const lenDiff = Math.abs(a.length - b.length);
+  if (1 - lenDiff / maxLen < 0.92) return 0;
+  const maxDist = Math.floor(maxLen * 0.08); // 92% similarity = 8% max distance
+  const dist = levenshtein(a, b, maxDist);
+  return 1 - dist / maxLen;
 }
 
 /** Extract function bodies with brace matching */
@@ -199,21 +260,27 @@ function findDuplicates(allFuncs: FuncInfo[]): Issue[] {
     });
   }
 
-  // Similarity check for non-exact matches (capped to avoid O(n²) explosion on large repos)
+  // Similarity check for non-exact matches — length-bucketed to avoid O(n²) explosion
+  // Only consider functions with substantial normalized bodies (>= 65 chars)
   const singles = allFuncs.filter(fn => {
     const g = groups.get(fn.hash);
-    return !g || g.length < 2;
+    return (!g || g.length < 2) && fn.normalized.length >= 65;
   });
 
-  // Cap at 500 functions for similarity — O(n²) with levenshtein is too expensive above that
-  const singlesCapped = singles.length > 500 ? singles.slice(0, 500) : singles;
+  // Sort by normalized length so we can break early when lengths diverge
+  singles.sort((a, b) => a.normalized.length - b.normalized.length);
 
-  for (let i = 0; i < singlesCapped.length; i++) {
-    for (let j = i + 1; j < singlesCapped.length; j++) {
-      const a = singles[i];
+  let comparisons = 0;
+  const MAX_COMPARISONS = 200_000; // safety cap
+
+  for (let i = 0; i < singles.length && comparisons < MAX_COMPARISONS; i++) {
+    const a = singles[i];
+    for (let j = i + 1; j < singles.length; j++) {
       const b = singles[j];
-      // Skip very short normalized bodies
-      if (a.normalized.length < 30 || b.normalized.length < 30) continue;
+      // If b is >25% longer than a, skip rest (sorted, so all further are longer)
+      if (b.normalized.length > a.normalized.length * 1.25) break;
+      comparisons++;
+      if (comparisons > MAX_COMPARISONS) break;
       const sim = similarity(a.normalized, b.normalized);
       if (sim > 0.92) {
         const key = [a.file + ':' + a.name, b.file + ':' + b.name].sort().join('|');
@@ -288,21 +355,33 @@ function findOrphanedExports(cwd: string, files: string[]): Issue[] {
     }
   }
 
-  // Scan all files for imports of each name
-  const allContent: string[] = [];
+  // Scan all files for import names — collect all imported identifiers into a Set
+  const importedNames = new Set<string>();
+  const importRe = /import\s+(?:type\s+)?(?:\{([^}]+)\}|([a-zA-Z_$][a-zA-Z0-9_$]*)(?:\s*,\s*\{([^}]+)\})?)\s+from\s+/g;
+
   for (const file of sourceFiles) {
     const content = readFile(join(cwd, file));
-    if (content) allContent.push(content);
+    if (!content) continue;
+    let match: RegExpExecArray | null;
+    importRe.lastIndex = 0;
+    while ((match = importRe.exec(content)) !== null) {
+      // Named imports: { a, b as c }
+      const namedParts = [match[1], match[3]].filter(Boolean);
+      for (const part of namedParts) {
+        for (const name of part.split(',')) {
+          const trimmed = name.trim().split(/\s+as\s+/)[0].trim();
+          if (trimmed) importedNames.add(trimmed);
+        }
+      }
+      // Default import
+      if (match[2]) importedNames.add(match[2]);
+    }
   }
-  const allText = allContent.join('\n');
 
   const lib = isLibrary(cwd);
 
   for (const exp of exports) {
-    // Check if name appears in import statements across all files
-    // import { name } from or import { x, name } from or import { name as y }
-    const importPattern = new RegExp(`import\\s+[^;]*\\b${exp.name}\\b[^;]*from\\s+`, 'm');
-    if (!importPattern.test(allText)) {
+    if (!importedNames.has(exp.name)) {
       issues.push({
         severity: lib ? 'info' : 'warning',
         message: `orphaned export: "${exp.name}" is exported but never imported${lib ? ' (library detected — exports may be consumed externally)' : ''}`,

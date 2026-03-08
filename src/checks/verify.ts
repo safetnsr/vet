@@ -1,6 +1,7 @@
 import { join, resolve, basename, dirname, extname } from 'node:path';
-import { readFileSync, existsSync, statSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { execSync } from 'node:child_process';
+import { cachedRead } from '../file-cache.js';
 import type { CheckResult, Issue } from '../types.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -314,7 +315,7 @@ export function checkVerify(cwd: string, since?: string): CheckResult {
         verified++;
         continue;
       }
-      content = readFileSync(absPath, 'utf-8');
+      content = cachedRead(absPath);
     } catch {
       continue;
     }

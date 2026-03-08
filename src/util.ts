@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { cachedReadFile } from './file-cache.js';
 
 // ANSI colors — zero deps
 export const c = {
@@ -34,7 +35,7 @@ export function isGitRepo(cwd: string): boolean {
 }
 
 export function readFile(path: string): string | null {
-  try { return readFileSync(path, 'utf-8'); } catch { return null; }
+  return cachedReadFile(path);
 }
 
 /** Returns true if the path exists (file or directory). Convenience alias for existsSync. */
@@ -42,7 +43,7 @@ export function fileExists(path: string): boolean {
   return existsSync(path);
 }
 
-export function walkFiles(dir: string, ignore: string[] = [], maxFiles: number = 2000): string[] {
+export function walkFiles(dir: string, ignore: string[] = [], maxFiles: number = 0): string[] {
   const results: string[] = [];
   const defaultIgnore = ['node_modules', '.git', 'dist', 'build', '.next', 'coverage', 'vendor', '__pycache__', '.venv', 'venv'];
   const allIgnore = [...defaultIgnore, ...ignore];
