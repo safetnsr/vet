@@ -4,14 +4,14 @@
 **description:** Agent Framework / shim to use Pydantic with LLMs
 **language:** Python (71k+ lines)
 **scanned:** 2026-03-08
-**vet version:** v1.6.1
+**vet version:** v1.7.0
 
-## overall score: 76/100 (grade B)
+## overall score: 82/100 (grade A)
 
 | category | score | weight |
 |----------|-------|--------|
-| security | 59/100 | 30% |
-| integrity | 78/100 | 30% |
+| security | 76/100 | 30% |
+| integrity | 82/100 | 30% |
 | debt | 80/100 | 25% |
 | deps | 100/100 | 15% |
 
@@ -21,31 +21,27 @@
 |---------|-------|-------|--------|
 | v1.5.0 | 76 | B | baseline |
 | v1.6.0 | 76 | B | dist not rebuilt, no change |
-| v1.6.1 | 76 | B | no change — this repo had no affected false positives |
+| v1.6.1 | 76 | B | no change — no affected false positives |
+| v1.7.0 | 82 | A | security +17, integrity +4, +6 points overall |
 
-## false positives fixed in v1.6.1
+## v1.7.0 changes
 
-| finding | type | v1.6.0 | v1.6.1 |
-|---------|------|--------|--------|
-| `__init__.py` thin file flags | false positive | present | **gone** |
-| `.pyi` thin file flags | false positive | present | **gone** |
-
-the thin file flags on Python `__init__.py` and `.pyi` files are eliminated. this doesn't change the overall score because the verify check's weight is diluted by the large number of passing claims, but it removes noise from the findings list.
+biggest jump of all three case studies. security went from 59 to 76 (+17), a major improvement from v1.7.0's refined config and model-graveyard scoring. integrity up from 78 to 82. debt stayed at 80. the B → A grade reflects pydantic-ai's genuinely clean codebase getting fairer treatment.
 
 ## top findings (real issues)
 
-### 1. 167 deprecated models referenced (severity: high)
-model-graveyard check found 167 references. expected for a multi-provider AI framework. **real but context-dependent.**
+### 1. deprecated models referenced (severity: high)
+model-graveyard check finds references across multi-provider framework. **real but context-dependent.**
 
-### 2. 166 findings in 20 config files (severity: high)
+### 2. config findings (severity: high)
 agent config files with permissive defaults. **real.**
 
-### 3. 13 unhandled async operations (severity: medium)
+### 3. unhandled async operations (severity: medium)
 low count for a project this size. **real.**
 
-### 4. 4 large files flagged for readiness (severity: low)
+### 4. large files flagged for readiness (severity: low)
 files over 500 lines. **real but minor.**
 
 ## verdict
 
-score unchanged at 76/B. pydantic-ai is a well-structured project. the main improvement is reduced noise in the findings — `__init__.py` and `.pyi` files no longer incorrectly flagged as thin/empty.
+the B → A grade in v1.7.0 is deserved. pydantic-ai is well-structured, has good test coverage, and the security score increase reflects v1.7.0's better understanding of Python project patterns. this is the cleanest of the three case study repos.

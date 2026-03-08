@@ -1,13 +1,13 @@
 {
   "project": "chatbot-ui",
-  "version": "1.6.1",
-  "score": 71,
-  "grade": "C",
+  "version": "1.7.0",
+  "score": 75,
+  "grade": "B",
   "fixableIssues": 119,
   "categories": [
     {
       "name": "security",
-      "score": 68,
+      "score": 73,
       "weight": 0.3,
       "checks": [
         {
@@ -872,7 +872,7 @@
     },
     {
       "name": "integrity",
-      "score": 78,
+      "score": 82,
       "weight": 0.3,
       "checks": [
         {
@@ -2666,48 +2666,6 @@
           "maxScore": 100,
           "issues": [
             {
-              "severity": "warning",
-              "message": "Thin file: .github/funding.yaml (2 non-empty lines)",
-              "file": ".github/funding.yaml",
-              "fixable": false,
-              "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-            },
-            {
-              "severity": "warning",
-              "message": "Thin file: .husky/pre-commit (3 non-empty lines)",
-              "file": ".husky/pre-commit",
-              "fixable": false,
-              "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-            },
-            {
-              "severity": "warning",
-              "message": "Thin file: .nvmrc (1 non-empty lines)",
-              "file": ".nvmrc",
-              "fixable": false,
-              "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-            },
-            {
-              "severity": "warning",
-              "message": "Thin file: __tests__/playwright-test/.gitignore (5 non-empty lines)",
-              "file": "__tests__/playwright-test/.gitignore",
-              "fixable": false,
-              "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-            },
-            {
-              "severity": "error",
-              "message": "Test file has no assertions: __tests__/playwright-test/package-lock.json",
-              "file": "__tests__/playwright-test/package-lock.json",
-              "fixable": false,
-              "fixHint": "Test file exists but contains no expect(), assert(), or test() calls"
-            },
-            {
-              "severity": "error",
-              "message": "Test file has no assertions: __tests__/playwright-test/package.json",
-              "file": "__tests__/playwright-test/package.json",
-              "fixable": false,
-              "fixHint": "Test file exists but contains no expect(), assert(), or test() calls"
-            },
-            {
               "severity": "error",
               "message": "Test file has no assertions: __tests__/playwright-test/playwright.config.ts",
               "file": "__tests__/playwright-test/playwright.config.ts",
@@ -2807,20 +2765,6 @@
             },
             {
               "severity": "warning",
-              "message": "Thin file: public/locales/de/translation.json (4 non-empty lines)",
-              "file": "public/locales/de/translation.json",
-              "fixable": false,
-              "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-            },
-            {
-              "severity": "warning",
-              "message": "Thin file: public/locales/en/translation.json (3 non-empty lines)",
-              "file": "public/locales/en/translation.json",
-              "fixable": false,
-              "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-            },
-            {
-              "severity": "warning",
               "message": "Thin file: public/providers/groq.png (8 non-empty lines)",
               "file": "public/providers/groq.png",
               "fixable": false,
@@ -2830,13 +2774,6 @@
               "severity": "warning",
               "message": "Thin file: public/worker-development.js (5 non-empty lines)",
               "file": "public/worker-development.js",
-              "fixable": false,
-              "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-            },
-            {
-              "severity": "warning",
-              "message": "Thin file: supabase/.gitignore (3 non-empty lines)",
-              "file": "supabase/.gitignore",
               "fixable": false,
               "fixHint": "Agent claimed to create/modify this file but it has minimal content"
             },
@@ -2981,7 +2918,7 @@
               "fixHint": "Agent claimed to create/modify this file but it has minimal content"
             }
           ],
-          "summary": "45 claims failed verification (275 passed)"
+          "summary": "36 claims failed verification (284 passed)"
         },
         {
           "name": "tests",
@@ -4748,48 +4685,6 @@
           "fixable": false
         },
         {
-          "severity": "warning",
-          "message": "Thin file: .github/funding.yaml (2 non-empty lines)",
-          "file": ".github/funding.yaml",
-          "fixable": false,
-          "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-        },
-        {
-          "severity": "warning",
-          "message": "Thin file: .husky/pre-commit (3 non-empty lines)",
-          "file": ".husky/pre-commit",
-          "fixable": false,
-          "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-        },
-        {
-          "severity": "warning",
-          "message": "Thin file: .nvmrc (1 non-empty lines)",
-          "file": ".nvmrc",
-          "fixable": false,
-          "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-        },
-        {
-          "severity": "warning",
-          "message": "Thin file: __tests__/playwright-test/.gitignore (5 non-empty lines)",
-          "file": "__tests__/playwright-test/.gitignore",
-          "fixable": false,
-          "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-        },
-        {
-          "severity": "error",
-          "message": "Test file has no assertions: __tests__/playwright-test/package-lock.json",
-          "file": "__tests__/playwright-test/package-lock.json",
-          "fixable": false,
-          "fixHint": "Test file exists but contains no expect(), assert(), or test() calls"
-        },
-        {
-          "severity": "error",
-          "message": "Test file has no assertions: __tests__/playwright-test/package.json",
-          "file": "__tests__/playwright-test/package.json",
-          "fixable": false,
-          "fixHint": "Test file exists but contains no expect(), assert(), or test() calls"
-        },
-        {
           "severity": "error",
           "message": "Test file has no assertions: __tests__/playwright-test/playwright.config.ts",
           "file": "__tests__/playwright-test/playwright.config.ts",
@@ -4889,20 +4784,6 @@
         },
         {
           "severity": "warning",
-          "message": "Thin file: public/locales/de/translation.json (4 non-empty lines)",
-          "file": "public/locales/de/translation.json",
-          "fixable": false,
-          "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-        },
-        {
-          "severity": "warning",
-          "message": "Thin file: public/locales/en/translation.json (3 non-empty lines)",
-          "file": "public/locales/en/translation.json",
-          "fixable": false,
-          "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-        },
-        {
-          "severity": "warning",
           "message": "Thin file: public/providers/groq.png (8 non-empty lines)",
           "file": "public/providers/groq.png",
           "fixable": false,
@@ -4912,13 +4793,6 @@
           "severity": "warning",
           "message": "Thin file: public/worker-development.js (5 non-empty lines)",
           "file": "public/worker-development.js",
-          "fixable": false,
-          "fixHint": "Agent claimed to create/modify this file but it has minimal content"
-        },
-        {
-          "severity": "warning",
-          "message": "Thin file: supabase/.gitignore (3 non-empty lines)",
-          "file": "supabase/.gitignore",
           "fixable": false,
           "fixHint": "Agent claimed to create/modify this file but it has minimal content"
         },
@@ -5066,7 +4940,7 @@
     },
     {
       "name": "debt",
-      "score": 48,
+      "score": 53,
       "weight": 0.25,
       "checks": [
         {
