@@ -16,6 +16,7 @@ import { checkIntegrity } from './checks/integrity.js';
 import { checkReceipt, runReceiptCommand } from './checks/receipt.js';
 import { checkMemory } from './checks/memory.js';
 import { checkVerify } from './checks/verify.js';
+import { checkTests } from './checks/tests.js';
 import { checkMap, renderMapReport } from './checks/map.js';
 import { score } from './scorer.js';
 import { toGrade } from './categories.js';
@@ -189,9 +190,12 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
   // Verify: agent claim validation
   const verifyResult = checkVerify(cwd, since);
 
+  // Tests: test theater detection
+  const testsResult = checkTests(cwd, ignore);
+
   return score(cwd, {
     security: [scanResult, secretsResult, configResult, modelsResult, owaspResult],
-    integrity: [diffResult, integrityResult, receiptResult, memoryResult, verifyResult],
+    integrity: [diffResult, integrityResult, receiptResult, memoryResult, verifyResult, testsResult],
     debt: [readyResult, historyResult, debtResult],
     deps: [depsResult],
   });
