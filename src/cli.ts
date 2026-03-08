@@ -20,6 +20,7 @@ import { checkTests } from './checks/tests.js';
 import { checkMap, renderMapReport } from './checks/map.js';
 import { checkPermissions } from './checks/permissions.js';
 import { checkCompact, runCompactCommand } from './checks/compact.js';
+import { checkSubsidy, runSubsidyCommand } from './checks/subsidy.js';
 import { score } from './scorer.js';
 import { toGrade } from './categories.js';
 import { reportPretty, reportJSON, reportBadge } from './reporter.js';
@@ -36,6 +37,11 @@ for (let i = 0; i < args.length; i++) {
     flagMap.set('since', args[i].split('=')[1]);
   } else if (args[i] === '--since' && args[i + 1]) {
     flagMap.set('since', args[i + 1]);
+    i++;
+  } else if (args[i].startsWith('--plan=')) {
+    flagMap.set('plan', args[i].split('=')[1]);
+  } else if (args[i] === '--plan' && args[i + 1]) {
+    flagMap.set('plan', args[i + 1]);
     i++;
   } else if (args[i].startsWith('--max-files=')) {
     flagMap.set('max-files', args[i].split('=')[1]);
@@ -64,6 +70,7 @@ if (flags.has('--help') || flags.has('-h')) {
     npx @safetnsr/vet map [dir]          show agent visibility map
     npx @safetnsr/vet permissions [dir]  audit Claude Code config for dangerous grants
     npx @safetnsr/vet compact [log]      compaction forensics for claude code sessions
+    npx @safetnsr/vet subsidy [--plan tier] [--since date]  show AI cost vs subscription
 
   ${c.dim}categories:${c.reset}
     security   (30%)  scan, secrets, config, model usage
@@ -100,7 +107,7 @@ if (flags.has('--version') || flags.has('-v')) {
   process.exit(0);
 }
 
-const COMMANDS = ['init', 'receipt', 'map', 'permissions', 'compact'];
+const COMMANDS = ['init', 'receipt', 'map', 'permissions', 'compact', 'subsidy'];
 const command = COMMANDS.includes(positional[0]) ? positional[0] : undefined;
 const cwd = resolve(positional.find(p => !COMMANDS.includes(p)) || '.');
 const isCI = flags.has('--ci');
@@ -192,6 +199,19 @@ if (command === 'compact') {
   process.exit(0);
 }
 
+if (command === 'subsidy') {
+  try {
+    const format = isJSON ? 'json' : 'ascii';
+    const plan = flagMap.get('plan') || 'claude-pro';
+    const since = flagMap.get('since');
+    await runSubsidyCommand(format, { since, plan });
+  } catch (e) {
+    console.error(`${c.red}subsidy failed:${c.reset}`, e instanceof Error ? e.message : e);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 if (!isGitRepo(cwd)) {
   console.error(`${c.red}not a git repository${c.reset}. vet operates on git repos.`);
   process.exit(1);
@@ -261,6 +281,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     depsResult,
     receiptResult,
     compactResult,
+    subsidyResult,
     memoryResult,
     verifyResult,
     testsResult,
@@ -277,6 +298,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     withTimeout('deps', () => checkDeps(cwd)),
     withTimeout('receipt', () => checkReceipt(cwd)),
     withTimeout('compact', () => checkCompact(cwd)),
+    withTimeout('subsidy', () => checkSubsidy(cwd)),
     withTimeout('memory', () => checkMemory(cwd)),
     withTimeout('verify', () => checkVerify(cwd, since)),
     withTimeout('tests', () => checkTests(cwd, ignore)),
@@ -292,7 +314,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
   clearCache();
 
   return score(cwd, {
-    security: [scanResult, secretsResult, configResult, modelsResult, owaspResult, permissionsResult],
+    security: [scanResult, secretsResult, configResult, modelsResult, owaspResult, permissionsResult, subsidyResult],
     integrity: [diffResult, integrityResult, receiptResult, compactResult, memoryResult, verifyResult, testsResult],
     debt: [readyResult, historyResult, debtResult],
     deps: [depsResult],
