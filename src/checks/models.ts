@@ -100,11 +100,14 @@ async function tryModelGraveyard(cwd: string): Promise<CheckResult | null> {
 
     // Files that define deprecated model registries should not be flagged
     const SELF_FILES = ['models.ts', 'models.js', 'model-graveyard', 'model-registry', 'sunset', 'fix/models'];
+    const GENERATED_PATTERNS = ['.generated.', '.gen.'];
 
     for (const match of report.matches) {
       if (!match.model) continue;
       // Skip self-referencing files (model definition/fix files)
       if (match.file && SELF_FILES.some(s => match.file.toLowerCase().includes(s))) continue;
+      // Skip auto-generated model registries
+      if (match.file && GENERATED_PATTERNS.some(p => match.file.includes(p))) continue;
       if (match.model.status === 'deprecated' || match.model.status === 'eol') {
         const inTestDocs = match.file && isTestOrDocsFile(match.file);
         const severity: 'error' | 'info' = (aiFramework || inTestDocs) ? 'info' : 'error';

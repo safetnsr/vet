@@ -67,9 +67,21 @@ function isCommentLine(line: string): boolean {
 function extractRelativeImports(source: string): { path: string; line: number }[] {
   const imports: { path: string; line: number }[] = [];
   const lines = source.split('\n');
+  let inTemplateLiteral = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+
+    // Track template literal context — check state at start of line, then update
+    const wasInTemplate = inTemplateLiteral;
+    for (let ci = 0; ci < line.length; ci++) {
+      if (line[ci] === '\\') { ci++; continue; }
+      if (line[ci] === '`') inTemplateLiteral = !inTemplateLiteral;
+    }
+
+    // Skip lines that start inside a template literal — they contain generated code, not real imports
+    if (wasInTemplate) continue;
+
     // Skip comment lines
     if (isCommentLine(line)) continue;
     const trimmed = line.trim();
@@ -160,6 +172,8 @@ function checkEmptyCatch(cwd: string, files: string[]): Issue[] {
     if (!sourceExts.has(extname(file))) continue;
     // Skip test files — empty catches in tests are usually intentional (testing error paths)
     if (isTestFile(file)) continue;
+    // Skip example/demo directories — example code doesn't need production error handling
+    if (/(?:^|[/\\])(?:examples?|demos?)[/\\]/.test(file)) continue;
 
     const content = readFile(join(cwd, file));
     if (!content) continue;
@@ -168,10 +182,10 @@ function checkEmptyCatch(cwd: string, files: string[]): Issue[] {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
-      // single-line catch with param and empty body — error silently swallowed
+      // single-line catch with param and empty body — warning (was error, too harsh)
       if (/catch\s*\([^)]*\)\s*\{\s*\}/.test(line)) {
         issues.push({
-          severity: 'error',
+          severity: 'warning',
           message: 'empty catch block — error silently swallowed',
           file,
           line: i + 1,
@@ -184,7 +198,7 @@ function checkEmptyCatch(cwd: string, files: string[]): Issue[] {
       // single-line catch without param and empty body
       if (/catch\s*\{\s*\}/.test(line)) {
         issues.push({
-          severity: 'error',
+          severity: 'warning',
           message: 'empty catch block — error silently swallowed',
           file,
           line: i + 1,
@@ -218,9 +232,16 @@ function checkEmptyCatch(cwd: string, files: string[]): Issue[] {
           // Check if block body is only comments
           const bodyText = blockLines.join('\n').replace(/\}$/, '').trim();
           if (bodyText.length > 0 && /^(\s*(\/\/[^\n]*|\/\*[\s\S]*?\*\/)\s*)*$/.test(bodyText)) {
+            // If the comment contains TODO/FIXME/HACK/XXX/WIP/implement, keep as warning (unfinished work)
+            // TEMP only as standalone marker (not "temporary" used as adjective)
+            // Otherwise, any comment text means someone documented why it's empty → downgrade to info
+            const unfinishedRe = /\b(TODO|FIXME|HACK|XXX|WIP|implement)\b|\bTEMP\b(?!orar)/i;
+            const sev = unfinishedRe.test(bodyText) ? 'warning' : 'info';
             issues.push({
-              severity: 'warning',
-              message: 'catch block contains only comments — consider proper error handling',
+              severity: sev,
+              message: sev === 'info'
+                ? 'catch block with intentional comment — acknowledged'
+                : 'catch block contains only comments — consider proper error handling',
               file,
               line: i + 1,
               fixable: false,
@@ -345,6 +366,71 @@ function hasGlobalErrorHandling(content: string): boolean {
   return false;
 }
 
+/**
+ * Build a per-line map of enclosing function info:
+ * - whether the function has any try/catch in its body
+ * - whether the function is exported
+ */
+interface FuncScope {
+  startLine: number;
+  endLine: number;
+  hasTryCatch: boolean;
+  isExported: boolean;
+}
+
+function buildFuncScopes(lines: string[]): FuncScope[] {
+  const scopes: FuncScope[] = [];
+  // Find function start lines
+  const funcStarts: { line: number; isExported: boolean }[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    // function declarations and arrow functions
+    const isFuncDecl = /(?:async\s+)?function\s+\w/.test(l) && /\{/.test(l);
+    const isArrow = /=>\s*\{/.test(l);
+    const isMethod = /^\s+(?:async\s+)?\w+\s*\([^)]*\)\s*(?::\s*\S+)?\s*\{/.test(l) && !/\b(?:if|for|while|switch|catch)\b/.test(l);
+    if (isFuncDecl || isArrow || isMethod) {
+      const isExported = /^\s*export\s/.test(l) || (i > 0 && /^\s*export\s/.test(lines[i - 1]));
+      funcStarts.push({ line: i, isExported });
+    }
+  }
+
+  for (const fs of funcStarts) {
+    // Find the opening brace on the start line
+    let braceIdx = lines[fs.line].indexOf('{');
+    if (braceIdx === -1) continue;
+    let depth = 0;
+    let endLine = fs.line;
+    let hasTry = false;
+    for (let i = fs.line; i < lines.length; i++) {
+      const startJ = i === fs.line ? braceIdx : 0;
+      for (let j = startJ; j < lines[i].length; j++) {
+        if (lines[i][j] === '{') depth++;
+        if (lines[i][j] === '}') {
+          depth--;
+          if (depth === 0) { endLine = i; break; }
+        }
+      }
+      if (/\btry\s*\{/.test(lines[i])) hasTry = true;
+      if (depth === 0) break;
+    }
+    scopes.push({ startLine: fs.line, endLine, hasTryCatch: hasTry, isExported: fs.isExported });
+  }
+  return scopes;
+}
+
+function findEnclosingFunc(scopes: FuncScope[], lineIdx: number): FuncScope | null {
+  // Find the tightest (smallest range) enclosing function
+  let best: FuncScope | null = null;
+  for (const s of scopes) {
+    if (lineIdx >= s.startLine && lineIdx <= s.endLine) {
+      if (!best || (s.endLine - s.startLine) < (best.endLine - best.startLine)) {
+        best = s;
+      }
+    }
+  }
+  return best;
+}
+
 function checkUnhandledAsync(cwd: string, files: string[]): Issue[] {
   const issues: Issue[] = [];
   const sourceExts = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs']);
@@ -355,6 +441,8 @@ function checkUnhandledAsync(cwd: string, files: string[]): Issue[] {
     if (isTestFile(file)) continue;
     // Skip error boundary files — they ARE the error handlers
     if (isErrorBoundaryFile(file)) continue;
+    // Skip example/demo directories — example code doesn't need production error handling
+    if (/(?:^|[/\\])(?:examples?|demos?)[/\\]/.test(file)) continue;
 
     const content = readFile(join(cwd, file));
     if (!content) continue;
@@ -391,6 +479,9 @@ function checkUnhandledAsync(cwd: string, files: string[]): Issue[] {
       }
     }
 
+    // Build function scope info for severity decisions
+    const funcScopes = buildFuncScopes(lines);
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
@@ -408,11 +499,28 @@ function checkUnhandledAsync(cwd: string, files: string[]): Issue[] {
         const hasThenError = /\.then\s*\([^,]+,\s*\w+/.test(line) || (i + 1 < lines.length && /\.then\s*\([^,]+,\s*\w+/.test(lines[i + 1]));
         if (!hasCatch && !hasThenError) {
           unhandledCount++;
-          // Downgrade Next.js server components to info (framework handles errors)
+
+          // Determine severity:
+          // - 'info' for Next.js server components, or functions that have try/catch elsewhere in their body
+          // - 'warning' only for exported functions with NO try/catch anywhere
+          // - 'info' for everything else (non-exported, internal functions)
           const isServerComp = isNextjsServerComponent(file);
+          const enclosing = findEnclosingFunc(funcScopes, i);
+          const hasFuncTryCatch = enclosing?.hasTryCatch ?? false;
+          const isExported = enclosing?.isExported ?? false;
+
+          let severity: 'warning' | 'info';
+          if (isServerComp || hasFuncTryCatch) {
+            severity = 'info';
+          } else if (isExported) {
+            severity = 'warning';
+          } else {
+            severity = 'info';
+          }
+
           if (unhandledCount <= 10) {
             issues.push({
-              severity: isServerComp ? 'info' : 'warning',
+              severity,
               message: isServerComp
                 ? 'unhandled async: await without try/catch (Next.js server component — framework-managed)'
                 : 'unhandled async: await without try/catch',
@@ -451,10 +559,11 @@ export async function checkIntegrity(cwd: string, ignore: string[]): Promise<Che
   let score = 100;
   score -= hallucinatedIssues.length * 10;
   score -= emptyCatchIssues.filter(i => i.severity === 'error').length * 8;
+  score -= emptyCatchIssues.filter(i => i.severity === 'warning').length * 3;
   score -= stubbedTestIssues.filter(i => i.severity === 'error').length * 5;
-  // Unhandled async capped at -30 (only count warnings, not info-downgraded ones)
-  const unhandledErrors = unhandledAsyncIssues.filter(i => i.severity === 'warning').length;
-  score -= Math.min(30, unhandledErrors * 3);
+  // Unhandled async capped at -15 (only count warnings, not info-downgraded ones)
+  const unhandledWarnings = unhandledAsyncIssues.filter(i => i.severity === 'warning').length;
+  score -= Math.min(15, unhandledWarnings * 3);
   score = Math.max(0, Math.round(score));
 
   // Summary parts

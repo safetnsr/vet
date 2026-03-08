@@ -211,6 +211,19 @@ export function checkMemory(cwd: string): CheckResult {
     for (const { path: p, line } of pathRefs) {
       // Skip ../  references — they point to sibling repos and can't be validated locally
       if (p.startsWith('../')) continue;
+      // Skip relative paths that appear inside inline code (`...`) in markdown files
+      if (relPath.endsWith('.md') || relPath.endsWith('.mdx')) {
+        const lineText = content.split('\n')[line - 1] || '';
+        // Check if this path is inside backtick code spans (inline code examples)
+        const pathIdx = lineText.indexOf(p);
+        if (pathIdx >= 0) {
+          const before = lineText.substring(0, pathIdx);
+          const after = lineText.substring(pathIdx + p.length);
+          // Count backticks before — odd means inside inline code
+          const ticksBefore = (before.match(/`/g) || []).length;
+          if (ticksBefore % 2 === 1) continue;
+        }
+      }
       const resolved = p.startsWith('/') ? p : resolve(cwd, p);
       if (!existsSync(resolved)) {
         issues.push({

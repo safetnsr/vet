@@ -100,6 +100,9 @@ export function extractPackageName(specifier: string): string | null {
   // Skip relative imports
   if (specifier.startsWith('.') || specifier.startsWith('/')) return null;
 
+  // Skip URL imports
+  if (specifier.startsWith('http://') || specifier.startsWith('https://')) return null;
+
   // Skip node: builtins
   if (specifier.startsWith('node:')) return null;
 
@@ -259,7 +262,7 @@ export function detectProvidedDeps(cwd: string): Set<string> {
     const pkgRaw = readFile(join(cwd, 'package.json'));
     if (!pkgRaw) return provided;
     const pkg = JSON.parse(pkgRaw);
-    const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
+    const allDeps = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.optionalDependencies, ...pkg.peerDependencies };
 
     // Obsidian plugin
     const hasObsidian = 'obsidian' in (allDeps || {});
@@ -300,6 +303,89 @@ function isProvidedPackage(pkg: string, provided: Set<string>): boolean {
   return false;
 }
 
+// ── Tooling packages (CLI-only, never imported in source) ────────────────────
+
+const TOOLING_PACKAGES = new Set([
+  'typescript', '@types/node', '@biomejs/biome', 'biome', 'prettier', 'eslint',
+  'husky', 'lint-staged', 'tsx', 'ts-node', 'concurrently', 'npm-run-all',
+  'shx', 'rimraf', 'cross-env', 'nodemon', 'jest', 'vitest', 'mocha',
+  'c8', 'nyc', 'turbo', 'lerna', 'changesets', '@changesets/cli',
+  'webpack', 'webpack-cli', 'vite', 'rollup', 'esbuild', 'swc',
+  'tailwindcss', 'postcss', 'autoprefixer', 'sass', 'less',
+  'commitizen', 'cz-conventional-changelog', 'semantic-release',
+  '@typescript/native-preview',
+]);
+
+// ── Collect all deps declared in workspace sub-packages ──────────────────────
+
+export function collectWorkspaceDeps(cwd: string): Set<string> {
+  const allDeps = new Set<string>();
+  const globs: string[] = [];
+
+  try {
+    const pkgRaw = readFile(join(cwd, 'package.json'));
+    if (pkgRaw) {
+      const pkg = JSON.parse(pkgRaw);
+      if (Array.isArray(pkg.workspaces)) globs.push(...pkg.workspaces);
+      else if (pkg.workspaces?.packages) globs.push(...pkg.workspaces.packages);
+    }
+  } catch { /* skip */ }
+
+  try {
+    const pnpmWs = readFile(join(cwd, 'pnpm-workspace.yaml'));
+    if (pnpmWs) {
+      const matches = pnpmWs.matchAll(/['"]?([^'":\n]+\*[^'":\n]*)['"]?/g);
+      for (const m of matches) globs.push(m[1].trim());
+    }
+  } catch { /* skip */ }
+
+  try {
+    const lernaRaw = readFile(join(cwd, 'lerna.json'));
+    if (lernaRaw) {
+      const lerna = JSON.parse(lernaRaw);
+      if (Array.isArray(lerna.packages)) globs.push(...lerna.packages);
+    }
+  } catch { /* skip */ }
+
+  function addDepsFromPkg(pkgPath: string): void {
+    try {
+      const raw = readFile(pkgPath);
+      if (!raw) return;
+      const pkg = JSON.parse(raw);
+      for (const key of Object.keys(pkg.dependencies || {})) allDeps.add(key);
+      for (const key of Object.keys(pkg.devDependencies || {})) allDeps.add(key);
+      for (const key of Object.keys(pkg.optionalDependencies || {})) allDeps.add(key);
+      for (const key of Object.keys(pkg.peerDependencies || {})) allDeps.add(key);
+    } catch { /* skip */ }
+  }
+
+  for (const glob of globs) {
+    const parts = glob.replace(/\/$/, '').split('/');
+    const starIdx = parts.indexOf('*');
+    if (starIdx === -1) {
+      addDepsFromPkg(join(cwd, glob, 'package.json'));
+    } else {
+      const prefix = parts.slice(0, starIdx).join('/');
+      const prefixDir = join(cwd, prefix);
+      try {
+        if (existsSync(prefixDir) && statSync(prefixDir).isDirectory()) {
+          for (const entry of readdirSync(prefixDir)) {
+            const entryDir = join(prefixDir, entry);
+            try {
+              if (!statSync(entryDir).isDirectory()) continue;
+              const suffix = parts.slice(starIdx + 1);
+              const pkgDir = suffix.length > 0 ? join(entryDir, ...suffix) : entryDir;
+              addDepsFromPkg(join(pkgDir, 'package.json'));
+            } catch { /* skip */ }
+          }
+        }
+      } catch { /* skip */ }
+    }
+  }
+
+  return allDeps;
+}
+
 // ── Main check ───────────────────────────────────────────────────────────────
 
 export async function checkDeps(cwd: string): Promise<CheckResult> {
@@ -308,13 +394,15 @@ export async function checkDeps(cwd: string): Promise<CheckResult> {
 
   // Read package.json
   let declaredDeps: Record<string, string> = {};
+  let devDeps: Record<string, string> = {};
   let hasPkgJson = false;
   try {
     const pkgRaw = readFile(join(cwd, 'package.json'));
     if (pkgRaw) {
       const pkg = JSON.parse(pkgRaw);
       hasPkgJson = true;
-      declaredDeps = { ...pkg.dependencies, ...pkg.devDependencies };
+      devDeps = pkg.devDependencies || {};
+      declaredDeps = { ...pkg.dependencies, ...devDeps, ...pkg.optionalDependencies, ...pkg.peerDependencies };
     }
   } catch { /* skip */ }
 
@@ -405,8 +493,11 @@ export async function checkDeps(cwd: string): Promise<CheckResult> {
 
   // Dead deps: declared but never imported
   const declaredSet = new Set(declaredNames);
+  const devDepNames = new Set(Object.keys(devDeps));
   for (const pkg of declaredNames) {
     if (!importedPackages.has(pkg)) {
+      // Skip known tooling packages that are devDependencies (used via CLI scripts, not imports)
+      if (TOOLING_PACKAGES.has(pkg) && devDepNames.has(pkg)) continue;
       // Check if it's a CLI tool / plugin / type package (common false positives)
       // Still flag it, but as info
       issues.push({
@@ -421,13 +512,16 @@ export async function checkDeps(cwd: string): Promise<CheckResult> {
 
   // Detect workspace packages and host-provided deps
   const workspacePackages = detectWorkspacePackages(cwd);
+  const workspaceDeps = collectWorkspaceDeps(cwd);
   const providedDeps = detectProvidedDeps(cwd);
 
   // Phantom imports: imported but not declared
   for (const pkg of importedPackages) {
     if (!declaredSet.has(pkg)) {
-      // Skip workspace packages
+      // Skip workspace packages (local packages in the monorepo)
       if (workspacePackages.has(pkg)) continue;
+      // Skip deps declared in any workspace sub-package
+      if (workspaceDeps.has(pkg)) continue;
       // Skip host-provided deps
       if (isProvidedPackage(pkg, providedDeps)) continue;
       issues.push({

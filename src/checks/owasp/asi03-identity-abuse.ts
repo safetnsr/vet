@@ -26,6 +26,8 @@ export function checkASI03(cwd: string, configFiles: string[]): { findings: Owas
     if (!content) continue;
     const contentLower = content.toLowerCase();
     const relPath = relative(cwd, filePath);
+    const normalizedPath = relPath.replace(/\\/g, '/');
+    const isCiFile = normalizedPath.startsWith('.github/workflows/') || normalizedPath.startsWith('.circleci/') || normalizedPath.startsWith('.gitlab-ci');
 
     if (leastPrivKeywords.some(kw => new RegExp(kw, 'i').test(content))) {
       hasLeastPrivMention = true;
@@ -64,7 +66,7 @@ export function checkASI03(cwd: string, configFiles: string[]): { findings: Owas
         }
       }
 
-      if (sudoPattern.test(line)) {
+      if (!isCiFile && sudoPattern.test(line)) {
         findings.push({
           asiId: 'ASI03',
           severity: 'warning',

@@ -106,6 +106,30 @@ function isTestFile(filePath: string): boolean {
   return false;
 }
 
+/** Test utility/helper file patterns — these export helpers, not actual tests */
+const TEST_UTILITY_NAMES = /(?:^|[/\\])(?:util(?:itie)?s?|helpers?|fixtures?|mocks?|setup|factor(?:y|ies)|themes?|test-(?:utils?|helpers?|setup|fixtures?|mocks?|themes?))\.[jt]sx?$/i;
+const TEST_DIR_PATTERN = /(?:^|[/\\])(__tests__|tests?)[/\\]/;
+
+function isTestUtilityFile(filePath: string, content: string): boolean {
+  const hasTestCalls = /\b(?:test|it|describe|Deno\.test)\s*\(/.test(content);
+  const base = basename(filePath);
+  if (TEST_UTILITY_NAMES.test(base) && !hasTestCalls) return true;
+  const normalized = filePath.replace(/\\/g, '/');
+  if (TEST_DIR_PATTERN.test(normalized) || normalized.startsWith('test/') || normalized.startsWith('tests/')) {
+    const hasExports = /\bexport\s+(function|const|let|var|class|default|{)/.test(content);
+    // Files with exports but no test calls are utilities
+    if (hasExports && !hasTestCalls) return true;
+    // Files with no exports AND no test calls but with actual code (imports, function defs)
+    // are standalone scripts (debug, examples, repros) — not test files
+    if (!hasExports && !hasTestCalls) {
+      const hasImports = /\bimport\s/.test(content);
+      const hasFunctions = /\b(?:function|class|const\s+\w+\s*=\s*(?:async\s+)?(?:\(|[a-z]))/i.test(content);
+      if (hasImports || hasFunctions) return true;
+    }
+  }
+  return false;
+}
+
 function hasAssertions(content: string): boolean {
   return /\b(assert|expect\s*\(|it\s*\(|test\s*\(|describe\s*\(|should\.|toBe\(|toEqual\(|assertEqual|assertStrictEqual)\b/i.test(content);
 }
@@ -349,6 +373,33 @@ export function checkVerify(cwd: string, since?: string): CheckResult {
       verified++;
       continue;
     }
+    // Skip vendor, minified, dist, and build files
+    if (/(?:^|[/\\])vendor[/\\]/.test(relPath) || /\.min\.(js|css|mjs)$/.test(relPath) || /(?:^|[/\\])(?:dist|build)[/\\]/.test(relPath)) {
+      verified++;
+      continue;
+    }
+    // Skip re-export barrel files (all non-empty lines are re-exports or wrappers)
+    if (lineCount > 0 && lineCount < 10) {
+      const nonEmptyLines = content.split('\n').filter((l: string) => l.trim() && !l.trim().startsWith('//') && !l.trim().startsWith('/*') && !l.trim().startsWith('*'));
+      const reExportRe = /^\s*(?:export\s+\*\s+from\s|export\s*\{[^}]*\}\s*from\s|module\.exports\s*=\s*require\s*\()/;
+      if (nonEmptyLines.length > 0 && nonEmptyLines.every((l: string) => reExportRe.test(l))) {
+        verified++;
+        continue;
+      }
+      // Also skip import-and-reexport wrappers: files with only imports, exports, and simple identifiers/braces
+      const wrapperRe = /^\s*(?:import\s|export\s|[a-zA-Z_$][a-zA-Z0-9_$]*\s*,?\s*$|\}\s*;?\s*$|\};?\s*$)/;
+      if (nonEmptyLines.length > 0 && nonEmptyLines.some((l: string) => /^\s*import\s/.test(l)) && nonEmptyLines.some((l: string) => /^\s*export\s/.test(l)) && nonEmptyLines.every((l: string) => wrapperRe.test(l))) {
+        verified++;
+        continue;
+      }
+    }
+
+    // Skip thin file check for entry point scripts in scripts/ directory
+    const normalizedForScripts = relPath.replace(/\\/g, '/');
+    if (/(?:^|[/\\])scripts[/\\]/.test(relPath) || normalizedForScripts.startsWith('scripts/') || normalizedForScripts.includes('/scripts/')) {
+      verified++;
+      continue;
+    }
 
     if (lineCount < 10 && lineCount > 0) {
       issues.push({
@@ -376,8 +427,8 @@ export function checkVerify(cwd: string, since?: string): CheckResult {
       continue;
     }
 
-    // 3. Test files must have actual assertions (but not config files)
-    if (isTestFile(relPath) && !isConfigFile(relPath)) {
+    // 3. Test files must have actual assertions (but not config files, not utility files)
+    if (isTestFile(relPath) && !isConfigFile(relPath) && !isTestUtilityFile(relPath, content)) {
       if (!hasAssertions(content)) {
         issues.push({
           severity: 'error',

@@ -90,18 +90,44 @@ function builtinReady(cwd: string, ignore: string[]): CheckResult {
   }
 
   let largeFileCount = 0;
+  const generatedFileRe = /(?:\.generated\.[jt]sx?$|\.gen\.[jt]s$|\.min\.[jt]s$|\.min\.css$|(?:^|[/\\])(?:generated|vendor|__generated__)[/\\])/;
+  const exampleDirRe = /(?:^|[/\\])(?:examples?|demos?|scripts?)[/\\]/;
+  const testFileRe = /(?:\.(?:test|spec)\.[jt]sx?$|(?:^|[/\\])(?:test|tests|__tests__)[/\\])/;
+  const largeFileIssues: Issue[] = [];
   for (const f of files) {
     if (!codeExts.some(ext => f.endsWith(ext))) continue;
+    // Skip generated/vendored/minified files
+    if (generatedFileRe.test(f)) continue;
+    // Bug 5: Skip files in examples/demo directories
+    if (exampleDirRe.test(f)) continue;
     const content = readFile(join(cwd, f));
-    if (content && content.split('\n').length > 500) {
+    if (!content) continue;
+    const lineCount = content.split('\n').length;
+    // Bug 3: Higher threshold for test files (1000 vs 500)
+    const threshold = testFileRe.test(f) ? 1000 : 500;
+    if (lineCount > threshold) {
       largeFileCount++;
-      if (largeFileCount <= 3) {
-        issues.push({ severity: 'warning', message: `${f} is ${content.split('\n').length} lines — split for better AI comprehension`, fixable: false });
-      }
+      largeFileIssues.push({ severity: 'warning', message: `${f} is ${lineCount} lines — split for better AI comprehension`, fixable: false });
     }
   }
-  if (largeFileCount > 3) {
-    issues.push({ severity: 'warning', message: `...and ${largeFileCount - 3} more large files`, fixable: false });
+
+  // Bug 4: Cap large file penalty for monorepos
+  if (isMonorepo && largeFileIssues.length > 10) {
+    // First 10 stay as warnings, rest downgraded to info
+    for (let i = 10; i < largeFileIssues.length; i++) {
+      largeFileIssues[i].severity = 'info';
+    }
+  }
+
+  // Add issues (show first 3 inline, rest as summary)
+  for (let i = 0; i < Math.min(3, largeFileIssues.length); i++) {
+    issues.push(largeFileIssues[i]);
+  }
+  if (largeFileIssues.length > 3) {
+    // Add remaining issues individually (for JSON output) but summarize in display
+    for (let i = 3; i < largeFileIssues.length; i++) {
+      issues.push(largeFileIssues[i]);
+    }
   }
 
   const hasEnv = files.some(f => f === '.env' || f === '.env.local');

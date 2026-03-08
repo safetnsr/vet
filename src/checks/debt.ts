@@ -1,4 +1,5 @@
-import { join, basename } from 'node:path';
+import { join, basename, dirname } from 'node:path';
+import { existsSync } from 'node:fs';
 import { walkFiles, readFile, c } from '../util.js';
 import type { CheckResult, Issue } from '../types.js';
 
@@ -250,8 +251,12 @@ function findDuplicates(allFuncs: FuncInfo[]): Issue[] {
     if (isSpecPattern(group)) continue;
 
     const locations = group.map(f => `${f.name} (${f.file}:${f.line})`).join(', ');
+    // Downgrade to info if all functions in the group are in test directories
+    // or if any function is in an examples/demo directory
+    const allInTest = group.every(f => isInTestDir(f.file));
+    const anyInExample = group.some(f => /(?:^|[/\\])(?:examples?|demos?)[/\\]/.test(f.file));
     issues.push({
-      severity: 'warning',
+      severity: (allInTest || anyInExample) ? 'info' : 'warning',
       message: `near-duplicate functions: ${locations}`,
       file: group[0].file,
       line: group[0].line,
@@ -286,8 +291,12 @@ function findDuplicates(allFuncs: FuncInfo[]): Issue[] {
         const key = [a.file + ':' + a.name, b.file + ':' + b.name].sort().join('|');
         if (reported.has(key)) continue;
         reported.add(key);
+        // Downgrade to info if both functions are in test directories
+        // or if either is in an examples/demo directory
+        const bothInTest = isInTestDir(a.file) && isInTestDir(b.file);
+        const anyInExample = /(?:^|[/\\])(?:examples?|demos?)[/\\]/.test(a.file) || /(?:^|[/\\])(?:examples?|demos?)[/\\]/.test(b.file);
         issues.push({
-          severity: 'warning',
+          severity: (bothInTest || anyInExample) ? 'info' : 'warning',
           message: `similar functions (${Math.round(sim * 100)}%): ${a.name} (${a.file}:${a.line}) and ${b.name} (${b.file}:${b.line})`,
           file: a.file,
           line: a.line,
@@ -310,6 +319,41 @@ function isLibrary(cwd: string): boolean {
     const pkg = JSON.parse(raw);
     return !!(pkg.main || pkg.exports || pkg.module || pkg.types || pkg.bin);
   } catch { return false; }
+}
+
+function isMonorepo(cwd: string): boolean {
+  try {
+    const pkgRaw = readFile(join(cwd, 'package.json'));
+    if (pkgRaw) {
+      const pkg = JSON.parse(pkgRaw);
+      if (Array.isArray(pkg.workspaces) || pkg.workspaces?.packages) return true;
+    }
+  } catch { /* skip */ }
+  if (existsSync(join(cwd, 'pnpm-workspace.yaml'))) return true;
+  if (existsSync(join(cwd, 'lerna.json'))) return true;
+  return false;
+}
+
+/** Find nearest package.json upward from a file path, check if it's a library */
+function isFileInLibraryPackage(cwd: string, filePath: string): boolean {
+  let dir = dirname(join(cwd, filePath));
+  const root = cwd;
+  while (dir.length >= root.length) {
+    const pkgPath = join(dir, 'package.json');
+    try {
+      const raw = readFile(pkgPath);
+      if (raw) {
+        // Don't count the root package.json — we already check that via isLibrary
+        if (dir === root) return false;
+        const pkg = JSON.parse(raw);
+        return !!(pkg.main || pkg.exports || pkg.module || pkg.types || pkg.bin);
+      }
+    } catch { /* skip */ }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return false;
 }
 
 function findOrphanedExports(cwd: string, files: string[]): Issue[] {
@@ -379,16 +423,19 @@ function findOrphanedExports(cwd: string, files: string[]): Issue[] {
   }
 
   const lib = isLibrary(cwd);
+  const mono = isMonorepo(cwd);
 
   for (const exp of exports) {
     if (!importedNames.has(exp.name)) {
+      // In monorepos, check if the export's file is inside a workspace package that is a library
+      const isLib = lib || (mono && isFileInLibraryPackage(cwd, exp.file));
       issues.push({
-        severity: lib ? 'info' : 'warning',
-        message: `orphaned export: "${exp.name}" is exported but never imported${lib ? ' (library detected — exports may be consumed externally)' : ''}`,
+        severity: isLib ? 'info' : 'warning',
+        message: `orphaned export: "${exp.name}" is exported but never imported${isLib ? ' (library detected — exports may be consumed externally)' : ''}`,
         file: exp.file,
         line: exp.line,
         fixable: true,
-        fixHint: lib ? 'may be public API — verify if still needed' : 'remove the export keyword or delete the function',
+        fixHint: isLib ? 'may be public API — verify if still needed' : 'remove the export keyword or delete the function',
       });
     }
   }
@@ -463,6 +510,11 @@ function findNamingDrift(allFuncs: FuncInfo[]): Issue[] {
 }
 
 // ── Main check ───────────────────────────────────────────────────────────────
+
+/** Check if a file path is in a test directory or is a test file */
+function isInTestDir(file: string): boolean {
+  return /(?:^|[/\\])(?:test|tests|__tests__)[/\\]/.test(file) || /\.(?:test|spec)\.[jt]sx?$/.test(file);
+}
 
 export async function checkDebt(cwd: string, ignore: string[]): Promise<CheckResult> {
   const allFiles = walkFiles(cwd, ignore);

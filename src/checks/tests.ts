@@ -10,6 +10,22 @@ function isTestFile(relPath: string): boolean {
   return TEST_FILE_RE.test(relPath) || TEST_DIR_RE.test(relPath);
 }
 
+/** Test utility/helper file patterns — these export helpers, not actual tests */
+const TEST_UTILITY_NAMES = /(?:^|[/\\])(?:util(?:itie)?s?|helpers?|fixtures?|mocks?|setup|factor(?:y|ies)|themes?|test-(?:utils?|helpers?|setup|fixtures?|mocks?|themes?))\.[jt]sx?$/i;
+
+function isTestUtilityFile(relPath: string, content: string): boolean {
+  const hasTestCalls = /\b(?:test|it|describe|Deno\.test)\s*\(/.test(content);
+  // Check filename pattern — but only if no test runner calls present
+  const base = basename(relPath);
+  if (TEST_UTILITY_NAMES.test(base) && !hasTestCalls) return true;
+  // If in a test dir, has exports, but no test runner calls — it's a utility
+  if (TEST_DIR_RE.test(relPath)) {
+    const hasExports = /\bexport\s+(function|const|let|var|class|default|{)/.test(content);
+    if (hasExports && !hasTestCalls) return true;
+  }
+  return false;
+}
+
 // Pattern 1: Tautological assertions
 function findTautological(lines: string[], file: string): Issue[] {
   const issues: Issue[] = [];
@@ -124,6 +140,10 @@ function findZeroAssertionTests(content: string, file: string): Issue[] {
     // Check for assertion calls
     const assertionRe = /(?:expect\s*\(|assert\.|\.should\.|toBe\s*\(|toEqual\s*\(|toMatch\s*\(|toThrow\s*\()/;
     if (!assertionRe.test(body)) {
+      // If every non-empty, non-comment statement is a function call, it's delegating to a helper
+      const stmts = stripped.split(/;\s*|\n/).map(s => s.trim()).filter(s => s && !s.startsWith('//'));
+      const delegatingRe = /^(await\s+)?[a-zA-Z_$][a-zA-Z0-9_$.]*\s*\(/;
+      if (stmts.length > 0 && stmts.length <= 3 && stmts.every(s => delegatingRe.test(s))) continue;
       const line = content.substring(0, m.index).split('\n').length;
       issues.push({
         severity: 'warning',
@@ -220,6 +240,9 @@ export function checkTests(cwd: string, ignore: string[]): CheckResult {
 
     // Skip files with vet-ignore: tests directive
     if (hasVetIgnore(content, 'tests')) continue;
+
+    // Skip test utility/helper files — they export helpers, not tests
+    if (isTestUtilityFile(rel, content)) continue;
 
     const lines = content.split('\n');
 

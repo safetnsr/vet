@@ -85,7 +85,7 @@ describe('empty catch blocks', () => {
     const result = await checkIntegrity(dir, []);
     const emptyCatch = result.issues.filter(i => i.message.includes('empty catch'));
     assert.ok(emptyCatch.length >= 1, 'should detect empty catch');
-    assert.ok(emptyCatch.some(i => i.severity === 'error'));
+    assert.ok(emptyCatch.some(i => i.severity === 'warning'), 'empty catch should be warning');
     cleanup(dir);
   });
 
@@ -112,7 +112,7 @@ describe('empty catch blocks', () => {
       'src/b.ts': `function b() { try { y(); } catch(err) {} }`,
     });
     const result = await checkIntegrity(dir, []);
-    assert.ok(result.score <= 84, `score should drop, got ${result.score}`);
+    assert.ok(result.score <= 94, `score should drop, got ${result.score}`);
     cleanup(dir);
   });
 });
@@ -356,17 +356,26 @@ startServer();`,
     cleanup(dir);
   });
 
-  test('Regular file unhandled async is still warning', async () => {
+  test('Non-exported function unhandled async is info, exported is warning', async () => {
     const dir = makeTempProject({
       'src/service.ts': `async function doWork() {
+  const data = await fetchData();
+  return data;
+}
+
+export async function publicWork() {
   const data = await fetchData();
   return data;
 }`,
     });
     const result = await checkIntegrity(dir, []);
-    const serviceIssues = result.issues.filter(i => i.file === 'src/service.ts' && i.message.includes('unhandled async'));
-    for (const issue of serviceIssues) {
-      assert.strictEqual(issue.severity, 'warning', `Regular file should still be warning`);
+    const nonExported = result.issues.filter(i => i.file === 'src/service.ts' && i.message.includes('unhandled async') && i.line === 2);
+    for (const issue of nonExported) {
+      assert.strictEqual(issue.severity, 'info', `Non-exported function should be info`);
+    }
+    const exported = result.issues.filter(i => i.file === 'src/service.ts' && i.message.includes('unhandled async') && i.line === 7);
+    for (const issue of exported) {
+      assert.strictEqual(issue.severity, 'warning', `Exported function should be warning`);
     }
     cleanup(dir);
   });

@@ -202,6 +202,9 @@ function scanContent(content: string, relPath: string): ScanFinding[] {
       // Skip command-substitution checks in workflow files (shell commands are expected)
       if (pattern.id === 'command-substitution' && isWorkflow) continue;
 
+      // Skip permission-escalation in CI workflow files (sudo apt-get etc. is standard)
+      if (pattern.id === 'permission-escalation' && isWorkflow) continue;
+
       // Skip command-substitution in markdown code contexts
       if (pattern.id === 'command-substitution' && relPath.endsWith('.md') && isInCodeContext(lines, i)) continue;
 
