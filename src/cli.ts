@@ -18,6 +18,7 @@ import { checkMemory } from './checks/memory.js';
 import { checkVerify } from './checks/verify.js';
 import { checkTests } from './checks/tests.js';
 import { checkMap, renderMapReport } from './checks/map.js';
+import { checkPermissions } from './checks/permissions.js';
 import { score } from './scorer.js';
 import { toGrade } from './categories.js';
 import { reportPretty, reportJSON, reportBadge } from './reporter.js';
@@ -54,6 +55,7 @@ if (flags.has('--help') || flags.has('-h')) {
     npx @safetnsr/vet init               generate configs + hooks
     npx @safetnsr/vet receipt            show last agent session receipt
     npx @safetnsr/vet map [dir]          show agent visibility map
+    npx @safetnsr/vet permissions [dir]  audit Claude Code config for dangerous grants
 
   ${c.dim}categories:${c.reset}
     security   (30%)  scan, secrets, config, model usage
@@ -89,7 +91,7 @@ if (flags.has('--version') || flags.has('-v')) {
   process.exit(0);
 }
 
-const COMMANDS = ['init', 'receipt', 'map'];
+const COMMANDS = ['init', 'receipt', 'map', 'permissions'];
 const command = COMMANDS.includes(positional[0]) ? positional[0] : undefined;
 const cwd = resolve(positional.find(p => !COMMANDS.includes(p)) || '.');
 const isCI = flags.has('--ci');
@@ -131,6 +133,28 @@ if (command === 'map') {
   process.exit(0);
 }
 
+if (command === 'permissions') {
+  const result = checkPermissions(cwd);
+  if (isJSON) {
+    console.log(JSON.stringify(result, null, 2));
+  } else {
+    console.log(`\n  ${c.bold}vet permissions${c.reset} — ${result.summary}\n`);
+    console.log(`  score: ${result.score}/100\n`);
+    if (result.issues.length === 0) {
+      console.log(`  ${c.green}no issues found${c.reset}\n`);
+    } else {
+      for (const issue of result.issues) {
+        const icon = issue.severity === 'error' ? c.red + '✗' : issue.severity === 'warning' ? c.yellow + '⚠' : c.dim + 'i';
+        const loc = issue.file ? ` ${c.dim}(${issue.file}${issue.line ? `:${issue.line}` : ''})${c.reset}` : '';
+        console.log(`  ${icon}${c.reset} ${issue.message}${loc}`);
+        if (issue.fixHint) console.log(`    ${c.dim}→ ${issue.fixHint}${c.reset}`);
+      }
+      console.log('');
+    }
+  }
+  process.exit(result.score < 60 ? 1 : 0);
+}
+
 if (!isGitRepo(cwd)) {
   console.error(`${c.red}not a git repository${c.reset}. vet operates on git repos.`);
   process.exit(1);
@@ -158,7 +182,7 @@ if (isFix) {
 
 async function runChecks(): Promise<ReturnType<typeof score>> {
   // Run all checks, grouped into categories
-  // Security: scan, secrets, config, models, owasp
+  // Security: scan, secrets, config, models, owasp, permissions
   const [scanResult, secretsResult, configResult, modelsResult, owaspResult] = await Promise.all([
     Promise.resolve(checkScan(cwd)),
     checkSecrets(cwd),
@@ -166,6 +190,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     checkModels(cwd, ignore),
     Promise.resolve(checkOwasp(cwd)),
   ]);
+  const permissionsResult = checkPermissions(cwd);
 
   // Integrity: diff, integrity checks
   const diffResult = checkDiff(cwd, { since });
@@ -194,7 +219,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
   const testsResult = checkTests(cwd, ignore);
 
   return score(cwd, {
-    security: [scanResult, secretsResult, configResult, modelsResult, owaspResult],
+    security: [scanResult, secretsResult, configResult, modelsResult, owaspResult, permissionsResult],
     integrity: [diffResult, integrityResult, receiptResult, memoryResult, verifyResult, testsResult],
     debt: [readyResult, historyResult, debtResult],
     deps: [depsResult],
