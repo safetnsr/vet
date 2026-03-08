@@ -86,11 +86,27 @@ function getRecentMessages(cwd: string, since?: string): string[] {
   return raw.split('\n').map(l => l.replace(/^[a-f0-9]+\s+/, '').trim()).filter(l => l.length > 0);
 }
 
+// ── Python project detection ─────────────────────────────────────────────────
+
+function isPythonProject(cwd: string): boolean {
+  const markers = ['pyproject.toml', 'setup.py', 'setup.cfg', 'requirements.txt'];
+  return markers.some(m => existsSync(join(cwd, m)));
+}
+
+function isPythonBoilerplate(filePath: string): boolean {
+  const base = basename(filePath);
+  if (base === '__init__.py') return true;
+  if (filePath.endsWith('.pyi')) return true;
+  if (filePath.replace(/\\/g, '/').includes('__pycache__/')) return true;
+  return false;
+}
+
 // ── Main check ───────────────────────────────────────────────────────────────
 
 export function checkVerify(cwd: string, since?: string): CheckResult {
   const issues: Issue[] = [];
   let deductions = 0;
+  const python = isPythonProject(cwd);
 
   // Check if git repo
   const isGit = safeExec('git rev-parse --is-inside-work-tree', cwd).trim();
@@ -179,6 +195,11 @@ export function checkVerify(cwd: string, since?: string): CheckResult {
     const lineCount = countLines(content);
 
     // 2. File must have meaningful content (>10 non-empty lines)
+    // Skip thin file check for Python boilerplate files
+    if (python && isPythonBoilerplate(relPath)) {
+      verified++;
+      continue;
+    }
     if (lineCount < 10 && lineCount > 0) {
       issues.push({
         severity: 'warning',
@@ -226,13 +247,16 @@ export function checkVerify(cwd: string, since?: string): CheckResult {
 
   const finalScore = Math.max(0, 100 - deductions);
 
+  const baseSummary = failed === 0
+    ? `${verified} agent claim${verified !== 1 ? 's' : ''} verified clean`
+    : `${failed} claim${failed !== 1 ? 's' : ''} failed verification (${verified} passed)`;
+  const summary = python ? `${baseSummary} (python project detected — some checks have reduced scope)` : baseSummary;
+
   return {
     name: 'verify',
     score: finalScore,
     maxScore: 100,
     issues,
-    summary: failed === 0
-      ? `${verified} agent claim${verified !== 1 ? 's' : ''} verified clean`
-      : `${failed} claim${failed !== 1 ? 's' : ''} failed verification (${verified} passed)`,
+    summary,
   };
 }

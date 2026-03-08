@@ -101,10 +101,13 @@ export function extractPackageName(specifier: string): string | null {
   // Skip node: builtins
   if (specifier.startsWith('node:')) return null;
 
+  // Path aliases: @/ is always a path alias (no npm package starts with @/)
+  if (specifier.startsWith('@/')) return null;
+
   // Scoped packages: @scope/name or @scope/name/sub
   if (specifier.startsWith('@')) {
     const parts = specifier.split('/');
-    if (parts.length < 2) return null;
+    if (parts.length < 2) return null; // bare @scope with no / is not a valid package
     return `${parts[0]}/${parts[1]}`;
   }
 
@@ -214,14 +217,22 @@ export async function checkDeps(cwd: string): Promise<CheckResult> {
 
   // ── 2. Typosquat detection ─────────────────────────────────────────────────
   const topSet = new Set(TOP_PACKAGES);
+  // Known-legitimate short packages that happen to be close to popular ones
+  const TYPOSQUAT_WHITELIST = new Set([
+    'ai', 'clsx', 'ws', 'os', 'ms', 'pg', 'ip', 'bn', 'qs', 'co', 'is',
+  ]);
   for (const pkg of declaredNames) {
     if (topSet.has(pkg)) continue; // it IS the popular package
+    if (pkg.length <= 3) continue; // too short, too many false matches
+    if (TYPOSQUAT_WHITELIST.has(pkg)) continue;
     for (const top of TOP_PACKAGES) {
       const dist = levenshtein(pkg, top);
       if (dist >= 1 && dist <= 2) {
+        // If the package exists on the registry, it's likely legitimate — downgrade to info
+        const existsOnRegistry = registryResults.get(pkg) === true;
         issues.push({
-          severity: 'error',
-          message: `possible typosquat: "${pkg}" is ${dist} edit${dist > 1 ? 's' : ''} from "${top}"`,
+          severity: existsOnRegistry ? 'info' : 'error',
+          message: `possible typosquat: "${pkg}" is ${dist} edit${dist > 1 ? 's' : ''} from "${top}"${existsOnRegistry ? ' (exists on npm)' : ''}`,
           file: 'package.json',
           fixable: true,
           fixHint: `did you mean "${top}"?`,

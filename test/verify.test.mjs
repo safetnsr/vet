@@ -289,6 +289,62 @@ test('checkVerify: detects __tests__/ directory as test files', async () => {
   }
 });
 
+// ── Python project: __init__.py not flagged as thin ───────────────────────
+test('checkVerify: python __init__.py not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    writeFileSync(join(dir, 'pyproject.toml'), '[project]\nname = "myapp"');
+    gitCommit(dir, 'initial');
+    // __init__.py with only 2 lines — would normally be "thin"
+    writeFileSync(join(dir, '__init__.py'), '# init\nfrom .core import main\n');
+    gitCommit(dir, 'add __init__.py');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('Thin file') && i.message.includes('__init__.py')),
+      `__init__.py should not be flagged as thin in Python projects, got: ${JSON.stringify(result.issues)}`);
+    assert.ok(result.summary.includes('python project'), `summary should mention python project`);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+// ── Python project: .pyi stubs not flagged as thin ────────────────────────
+test('checkVerify: python .pyi stubs not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    writeFileSync(join(dir, 'setup.py'), 'from setuptools import setup');
+    gitCommit(dir, 'initial');
+    writeFileSync(join(dir, 'types.pyi'), 'x: int\ny: str\n');
+    gitCommit(dir, 'add types.pyi');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('Thin file') && i.message.includes('types.pyi')),
+      `.pyi stubs should not be flagged as thin in Python projects`);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+// ── Non-Python project: thin files still flagged ──────────────────────────
+test('checkVerify: non-python project still flags thin files', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    gitCommit(dir, 'initial');
+    writeFileSync(join(dir, '__init__.py'), '# init\nfrom .core import main\n');
+    gitCommit(dir, 'add __init__.py');
+    const result = checkVerify(dir);
+    assert.ok(result.issues.some(i => i.message.includes('Thin file')),
+      `non-python project should still flag thin files`);
+    assert.ok(!result.summary.includes('python project'));
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
 // ── 16. score is bounded 0-100 ────────────────────────────────────────────
 test('checkVerify: score is always between 0 and 100', async () => {
   const dir = makeTmpDir();
