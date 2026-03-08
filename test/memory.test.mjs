@@ -225,7 +225,44 @@ test('checkMemory: issues have fixHint', () => {
   }
 });
 
-// 16. score never goes below 0
+// 16. cross-repo ../  references not flagged as broken
+test('checkMemory: ../sibling-repo/ path not flagged as broken', () => {
+  const dir = makeTmpDir();
+  try {
+    writeFileSync(join(dir, 'CLAUDE.md'), 'See ../langchain-google/ for the Google provider');
+    const result = checkMemory(dir);
+    const brokenPath = result.issues.filter(i => i.message.includes('../langchain-google'));
+    assert.equal(brokenPath.length, 0, 'cross-repo ../ references should not be flagged');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('checkMemory: ../ with deep path not flagged', () => {
+  const dir = makeTmpDir();
+  try {
+    writeFileSync(join(dir, 'CLAUDE.md'), 'Import from ../shared-utils/src/helpers.ts');
+    const result = checkMemory(dir);
+    const brokenPath = result.issues.filter(i => i.message.includes('../shared-utils'));
+    assert.equal(brokenPath.length, 0, 'deep ../ references should not be flagged');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('checkMemory: ./ broken path still flagged', () => {
+  const dir = makeTmpDir();
+  try {
+    writeFileSync(join(dir, 'CLAUDE.md'), 'Entry: ./src/nonexistent-crossrepo-test.ts');
+    const result = checkMemory(dir);
+    assert.ok(result.issues.some(i => i.message.includes('./src/nonexistent-crossrepo-test.ts')),
+      './ broken paths should still be flagged');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+// 17. score never goes below 0
 test('checkMemory: score floors at 0', () => {
   const dir = makeTmpDir();
   try {

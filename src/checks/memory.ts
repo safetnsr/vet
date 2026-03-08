@@ -203,6 +203,8 @@ export function checkMemory(cwd: string): CheckResult {
     // 2. Broken path references
     const pathRefs = extractPaths(content);
     for (const { path: p, line } of pathRefs) {
+      // Skip ../  references — they point to sibling repos and can't be validated locally
+      if (p.startsWith('../')) continue;
       const resolved = p.startsWith('/') ? p : resolve(cwd, p);
       if (!existsSync(resolved)) {
         issues.push({

@@ -612,6 +612,148 @@ test('checkVerify: files in docs/ not flagged as thin', async () => {
   }
 });
 
+// ── Fix 2: Python pattern-based small files not flagged ───────────────────
+
+test('checkVerify: version.py not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'pyproject.toml'), '[project]\nname = "test"');
+    gitCommit(dir, 'initial');
+    writeFileSync(join(dir, 'version.py'), '__version__ = "1.0.0"\n');
+    gitCommit(dir, 'add version.py');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('Thin file') && i.message.includes('version.py')),
+      'version.py should not be flagged as thin');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('checkVerify: conftest.py not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'pyproject.toml'), '[project]\nname = "test"');
+    gitCommit(dir, 'initial');
+    mkdirSync(join(dir, 'tests'), { recursive: true });
+    writeFileSync(join(dir, 'tests/conftest.py'), 'import pytest\n');
+    gitCommit(dir, 'add conftest.py');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('Thin file') && i.message.includes('conftest.py')),
+      'conftest.py should not be flagged as thin');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('checkVerify: small Python file in providers/ not flagged', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'pyproject.toml'), '[project]\nname = "test"');
+    gitCommit(dir, 'initial');
+    mkdirSync(join(dir, 'src/providers'), { recursive: true });
+    writeFileSync(join(dir, 'src/providers/openai.py'), 'API_KEY = ""\n');
+    gitCommit(dir, 'add provider');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('Thin file') && i.message.includes('openai.py')),
+      'Python files in providers/ should not be flagged as thin');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+// ── Fix 3: Next.js app router files not flagged as thin ───────────────────
+
+test('checkVerify: Next.js page.tsx not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    gitCommit(dir, 'initial');
+    mkdirSync(join(dir, 'app'), { recursive: true });
+    writeFileSync(join(dir, 'app/page.tsx'), 'export default function Page() {\n  return <div>Hi</div>;\n}\n');
+    gitCommit(dir, 'add page.tsx');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('Thin file') && i.message.includes('page.tsx')),
+      'Next.js page.tsx should not be flagged as thin');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('checkVerify: Next.js layout.tsx not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    gitCommit(dir, 'initial');
+    mkdirSync(join(dir, 'app'), { recursive: true });
+    writeFileSync(join(dir, 'app/layout.tsx'), 'export default function Layout({ children }) {\n  return <html><body>{children}</body></html>;\n}\n');
+    gitCommit(dir, 'add layout.tsx');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('Thin file') && i.message.includes('layout.tsx')),
+      'Next.js layout.tsx should not be flagged as thin');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('checkVerify: Next.js loading.tsx not flagged as thin', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    gitCommit(dir, 'initial');
+    mkdirSync(join(dir, 'app'), { recursive: true });
+    writeFileSync(join(dir, 'app/loading.tsx'), 'export default function Loading() {\n  return <div>Loading...</div>;\n}\n');
+    gitCommit(dir, 'add loading.tsx');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('Thin file') && i.message.includes('loading.tsx')),
+      'Next.js loading.tsx should not be flagged as thin');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+// ── Fix 4: Config files not flagged as "test without assertions" ──────────
+
+test('checkVerify: playwright.config.ts not flagged as test without assertions', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    gitCommit(dir, 'initial');
+    const configContent = Array(12).fill(0).map((_, i) => `// config line ${i}`).join('\n');
+    writeFileSync(join(dir, 'playwright.config.ts'), configContent);
+    gitCommit(dir, 'add playwright.config.ts');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('no assertions') && i.file?.includes('playwright.config')),
+      'playwright.config.ts should not be flagged as test without assertions');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('checkVerify: vitest.config.ts in test/ dir not flagged as test', async () => {
+  const dir = makeTmpDir();
+  try {
+    gitInit(dir);
+    writeFileSync(join(dir, 'README.md'), 'hello');
+    gitCommit(dir, 'initial');
+    mkdirSync(join(dir, 'test'), { recursive: true });
+    const configContent = Array(12).fill(0).map((_, i) => `// vitest config ${i}`).join('\n');
+    writeFileSync(join(dir, 'test/vitest.config.ts'), configContent);
+    gitCommit(dir, 'add vitest.config.ts');
+    const result = checkVerify(dir);
+    assert.ok(!result.issues.some(i => i.message.includes('no assertions') && i.file?.includes('vitest.config')),
+      'vitest.config.ts should not be flagged as test without assertions');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
 // ── 16. score is bounded 0-100 ────────────────────────────────────────────
 test('checkVerify: score is always between 0 and 100', async () => {
   const dir = makeTmpDir();

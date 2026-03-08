@@ -316,8 +316,12 @@ function isNextjsServerComponent(file: string): boolean {
   const base = basename(normalized);
   // Next.js app directory server components
   if (NEXTJS_SERVER_FILES.test(base)) return true;
-  // Next.js API route handlers (app/api/)
-  if (normalized.includes('app/api/') && /^route\.[jt]sx?$/.test(base)) return true;
+  // Next.js route handlers (route.ts/js/tsx/jsx) anywhere in app/
+  if (/^route\.[jt]sx?$/.test(base)) return true;
+  // Any file in app/api/ directory
+  if (normalized.includes('app/api/')) return true;
+  // Next.js middleware
+  if (/^middleware\.[jt]s$/.test(base)) return true;
   return false;
 }
 

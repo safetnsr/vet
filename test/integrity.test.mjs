@@ -309,6 +309,53 @@ startServer();`,
     cleanup(dir);
   });
 
+  test('Next.js route.ts outside app/api/ is downgraded to info', async () => {
+    const dir = makeTempProject({
+      'app/dashboard/route.ts': `export async function POST(request) {
+  const body = await request.json();
+  const result = await processData(body);
+  return Response.json(result);
+}`,
+    });
+    const result = await checkIntegrity(dir, []);
+    const routeIssues = result.issues.filter(i => i.file.includes('route.ts') && i.message.includes('unhandled async'));
+    for (const issue of routeIssues) {
+      assert.strictEqual(issue.severity, 'info', `Next.js route handler should be info, got ${issue.severity}`);
+    }
+    cleanup(dir);
+  });
+
+  test('Next.js middleware.ts unhandled async is downgraded to info', async () => {
+    const dir = makeTempProject({
+      'src/middleware.ts': `export async function middleware(request) {
+  const session = await getSession(request);
+  return NextResponse.next();
+}`,
+    });
+    const result = await checkIntegrity(dir, []);
+    const mwIssues = result.issues.filter(i => i.file.includes('middleware.ts') && i.message.includes('unhandled async'));
+    // middleware.ts is caught by isErrorBoundaryFile (skipped entirely) OR downgraded
+    // Either way, no warnings should exist
+    const mwWarnings = mwIssues.filter(i => i.severity === 'warning');
+    assert.strictEqual(mwWarnings.length, 0, 'middleware.ts should not have warning-level unhandled async');
+    cleanup(dir);
+  });
+
+  test('Files in app/api/ directory are downgraded to info', async () => {
+    const dir = makeTempProject({
+      'app/api/health/check.ts': `export async function handler() {
+  const status = await checkHealth();
+  return Response.json({ status });
+}`,
+    });
+    const result = await checkIntegrity(dir, []);
+    const apiIssues = result.issues.filter(i => i.file.includes('app/api/') && i.message.includes('unhandled async'));
+    for (const issue of apiIssues) {
+      assert.strictEqual(issue.severity, 'info', `app/api/ files should be info, got ${issue.severity}`);
+    }
+    cleanup(dir);
+  });
+
   test('Regular file unhandled async is still warning', async () => {
     const dir = makeTempProject({
       'src/service.ts': `async function doWork() {

@@ -165,13 +165,49 @@ function isPythonProject(cwd: string): boolean {
 /** Directories where small files are expected (examples, demos, docs) */
 const SMALL_FILE_DIRS = ['examples/', 'example/', 'demos/', 'demo/', 'docs/'];
 
+/** Next.js app router files that are designed to be small wrappers */
+const NEXTJS_APP_FILES = new Set([
+  'page.tsx', 'page.jsx', 'page.ts', 'page.js',
+  'layout.tsx', 'layout.jsx',
+  'loading.tsx', 'loading.jsx',
+  'not-found.tsx', 'not-found.jsx',
+  'error.tsx', 'error.jsx',
+  'template.tsx', 'template.jsx',
+]);
+
+function isNextjsAppFile(filePath: string): boolean {
+  return NEXTJS_APP_FILES.has(basename(filePath));
+}
+
+/** Config files should never be flagged as test files */
+function isConfigFile(filePath: string): boolean {
+  const base = basename(filePath);
+  return /\.config\.[a-z]+$/i.test(base);
+}
+
+/** Python pattern directories where small files are expected */
+const PYTHON_PATTERN_DIRS = ['profiles/', 'providers/', 'configs/', 'config/', 'tests/', 'test/'];
+
+/** Python pattern file names that are expected to be small */
+const PYTHON_PATTERN_NAMES = new Set(['version.py', '__version__.py', 'conftest.py']);
+
 function isPythonBoilerplate(filePath: string): boolean {
   const base = basename(filePath);
+  const normalized = filePath.replace(/\\/g, '/');
   if (base === '__init__.py') return true;
   if (base === '__main__.py') return true;
   if (base === 'py.typed') return true;
   if (filePath.endsWith('.pyi')) return true;
-  if (filePath.replace(/\\/g, '/').includes('__pycache__/')) return true;
+  if (normalized.includes('__pycache__/')) return true;
+  // Pattern-based small Python files
+  if (PYTHON_PATTERN_NAMES.has(base)) return true;
+  if (base.endsWith('_utils.py')) return true;
+  // Test files in test directories (test_*.py, *_test.py)
+  if (/^test_.*\.py$/.test(base) || /^.*_test\.py$/.test(base)) {
+    if (PYTHON_PATTERN_DIRS.some(d => normalized.includes(d))) return true;
+  }
+  // Files in pattern directories (profiles/, providers/, configs/, config/)
+  if (base.endsWith('.py') && PYTHON_PATTERN_DIRS.some(d => normalized.includes(d))) return true;
   return false;
 }
 
@@ -289,6 +325,11 @@ export function checkVerify(cwd: string, since?: string): CheckResult {
       verified++;
       continue;
     }
+    // Skip thin file check for Next.js app router files (designed as small wrappers)
+    if (isNextjsAppFile(relPath)) {
+      verified++;
+      continue;
+    }
     if (lineCount < 10 && lineCount > 0) {
       issues.push({
         severity: 'warning',
@@ -315,8 +356,8 @@ export function checkVerify(cwd: string, since?: string): CheckResult {
       continue;
     }
 
-    // 3. Test files must have actual assertions
-    if (isTestFile(relPath)) {
+    // 3. Test files must have actual assertions (but not config files)
+    if (isTestFile(relPath) && !isConfigFile(relPath)) {
       if (!hasAssertions(content)) {
         issues.push({
           severity: 'error',
