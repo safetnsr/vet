@@ -265,15 +265,15 @@ if (isBadge && !isWatch) {
 
 // --watch mode
 if (isWatch) {
-  console.clear();
-  let result = await runChecks();
-  console.log(reportPretty(result));
-  console.log(`  ${c.dim}watching for changes... (ctrl+c to stop)${c.reset}\n`);
-
-  let debounce: ReturnType<typeof setTimeout> | null = null;
-  const { watch } = await import('node:fs');
-
   try {
+    console.clear();
+    let result = await runChecks();
+    console.log(reportPretty(result));
+    console.log(`  ${c.dim}watching for changes... (ctrl+c to stop)${c.reset}\n`);
+
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const { watch } = await import('node:fs');
+
     const watcher = watch(cwd, { recursive: true }, (event, filename) => {
       if (!filename) return;
       if (filename.includes('node_modules') || filename.includes('.git')) return;

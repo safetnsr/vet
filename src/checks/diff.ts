@@ -146,7 +146,7 @@ export function checkDiff(cwd: string, opts: DiffOptions = {}): CheckResult {
       // Extract imported name
       const nameMatch = imp.text.match(/import\s+(?:\{([^}]+)\}|(\w+))/);
       if (nameMatch) {
-        const names = (nameMatch[1] || nameMatch[2] || '').split(',').map(n => n.trim().split(' as ').pop()?.trim()).filter(Boolean);
+        const names = (nameMatch[1] || nameMatch[2] || '').split(',').map(n => n.trim().replace(/^type\s+/, '').split(' as ').pop()?.trim()).filter(Boolean);
         for (const name of names) {
           if (!name || name.length < 2) continue;
           // Check if name is used in any other added line OR in unchanged file content

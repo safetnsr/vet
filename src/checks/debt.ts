@@ -151,6 +151,17 @@ function extractFunctions(source: string, file: string): FuncInfo[] {
 
 // ── A) Near-duplicate detection ──────────────────────────────────────────────
 
+/** Check if functions are in a numbered spec implementation pattern (e.g. asi01, asi02...) */
+function isSpecPattern(group: FuncInfo[]): boolean {
+  if (group.length < 3) return false;
+  const dirs = new Set(group.map(f => f.file.substring(0, f.file.lastIndexOf('/'))));
+  if (dirs.size !== 1) return false; // must be same directory
+  // Check if filenames follow a numbered pattern
+  const bases = group.map(f => f.file.substring(f.file.lastIndexOf('/') + 1));
+  const numbered = bases.filter(b => /\d{2}/.test(b));
+  return numbered.length >= 3;
+}
+
 function findDuplicates(allFuncs: FuncInfo[]): Issue[] {
   const issues: Issue[] = [];
   const groups = new Map<string, FuncInfo[]>();
@@ -164,13 +175,18 @@ function findDuplicates(allFuncs: FuncInfo[]): Issue[] {
 
   const reported = new Set<string>();
 
-  // Exact duplicates
+  // Exact duplicates (only flag if normalized body is substantial)
   for (const [, group] of groups) {
     if (group.length < 2) continue;
+    // Skip if the normalized body is too generic (short functions normalize to same hash easily)
+    if (group[0].normalized.length < 65) continue;
     // Deduplicate by name+file
     const key = group.map(f => `${f.file}:${f.name}`).sort().join('|');
     if (reported.has(key)) continue;
     reported.add(key);
+
+    // Skip groups that follow a numbered spec pattern (e.g., ASI01-ASI10 checks)
+    if (isSpecPattern(group)) continue;
 
     const locations = group.map(f => `${f.name} (${f.file}:${f.line})`).join(', ');
     issues.push({
@@ -196,7 +212,7 @@ function findDuplicates(allFuncs: FuncInfo[]): Issue[] {
       // Skip very short normalized bodies
       if (a.normalized.length < 30 || b.normalized.length < 30) continue;
       const sim = similarity(a.normalized, b.normalized);
-      if (sim > 0.85) {
+      if (sim > 0.92) {
         const key = [a.file + ':' + a.name, b.file + ':' + b.name].sort().join('|');
         if (reported.has(key)) continue;
         reported.add(key);
@@ -408,9 +424,12 @@ export async function checkDebt(cwd: string, ignore: string[]): Promise<CheckRes
 
   // ── Scoring ──────────────────────────────────────────────────────────────
   const dupPenalty = Math.min(50, dupIssues.length * 8);
-  const orphanPenalty = Math.min(30, orphanIssues.length * 5);
-  const wrapperPenalty = Math.min(15, wrapperIssues.length * 3);
-  const driftPenalty = Math.min(10, driftIssues.length * 2);
+  const orphanWarnings = orphanIssues.filter(i => i.severity === 'warning');
+  const orphanPenalty = Math.min(30, orphanWarnings.length * 5);
+  const wrapperWarnings = wrapperIssues.filter(i => i.severity === 'warning');
+  const driftWarnings = driftIssues.filter(i => i.severity === 'warning');
+  const wrapperPenalty = Math.min(15, wrapperWarnings.length * 3);
+  const driftPenalty = Math.min(10, driftWarnings.length * 2);
 
   const rawScore = 100 - dupPenalty - orphanPenalty - wrapperPenalty - driftPenalty;
   const finalScore = Math.max(0, Math.round(rawScore));

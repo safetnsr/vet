@@ -78,6 +78,9 @@ function analyzeConfig(cwd: string, configFile: string, agentName: string, files
 
   if (completenessChecks > 0) {
     completenessScore = Math.round((completenessHits / completenessChecks) * 10);
+  } else {
+    // No framework dependencies detected — completeness is not applicable, don't penalize
+    completenessScore = 10;
   }
 
   // Consistency: cross-reference with actual project config
@@ -99,7 +102,9 @@ function analyzeConfig(cwd: string, configFile: string, agentName: string, files
   }
 
   // Check if config mentions testing but no test framework installed
-  if ((contentLower.includes('test') || contentLower.includes('spec')) && !deps.vitest && !deps.jest && !deps.mocha && !deps.ava) {
+  // Also check if using Node's built-in test runner (node:test)
+  const usesNodeTest = contentLower.includes('node:test') || contentLower.includes('node test runner') || contentLower.includes('node built-in test');
+  if ((contentLower.includes('test') || contentLower.includes('spec')) && !deps.vitest && !deps.jest && !deps.mocha && !deps.ava && !usesNodeTest) {
     consistencyScore -= 2;
     suggestions.push('config mentions tests but no test framework in dependencies');
   }

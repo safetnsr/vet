@@ -1,4 +1,4 @@
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 import { readFileSync, statSync, existsSync } from 'node:fs';
 import { isTextFile, collectDirFiles } from '../../util.js';
 

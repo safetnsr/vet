@@ -12,9 +12,11 @@ vet is a zero-dependency TypeScript CLI that scores AI code health (A–F) acros
 
 Run these commands from the repo root:
 
-    npm run build        compile TypeScript to dist/
-    npm test             run 270+ tests via Node built-in test runner
-    node dist/cli.js --pretty .    score this repo
+```bash
+npm run build        # compile TypeScript to dist/
+npm test             # run 270+ tests via Node built-in test runner
+node dist/cli.js --pretty .   # score this repo
+```
 
 ## Architecture
 
@@ -29,6 +31,13 @@ Run these commands from the repo root:
 - src/util.ts — shared helpers: gitExec, readFile, walkFiles
 - src/scorer.ts — weighted score and grade computation (A=90, B=75, C=60, D=40, F=0)
 - test/ — Node built-in test runner, .mjs test files
+
+## API Usage
+
+```typescript
+import { checkDeps } from '@safetnsr/vet';
+const result = await checkDeps('/path/to/project');
+```
 
 ## Constraints
 

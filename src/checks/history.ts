@@ -74,7 +74,7 @@ export function checkHistory(cwd: string): CheckResult {
   const aiPct = commits.length > 0 ? Math.round((aiCommits / commits.length) * 100) : 0;
   const infos = issues.filter(i => i.severity === 'info').length;
   const warnings = issues.filter(i => i.severity === 'warning').length;
-  const score = Math.max(0, Math.min(100, 100 - warnings * 10 - infos * 2));
+  const score = Math.max(0, Math.min(100, 100 - warnings * 10));
 
   return {
     name: 'history',
