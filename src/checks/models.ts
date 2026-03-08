@@ -19,6 +19,9 @@ function isAiFramework(cwd: string): boolean {
       const name = (pkg.name || '').toLowerCase();
       if (AI_NAME_KEYWORDS.some(k => name.includes(k))) return true;
       if (Array.isArray(pkg.keywords) && pkg.keywords.some((k: string) => AI_PKG_KEYWORDS.has(k.toLowerCase()))) return true;
+      // Check if any AI SDK is in dependencies
+      const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
+      if (aiDeps.some(d => allDeps[d])) return true;
     } catch { /* skip */ }
   }
 
