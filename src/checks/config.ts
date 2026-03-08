@@ -182,19 +182,13 @@ export function checkConfig(cwd: string, ignore: string[]): CheckResult {
   }
 
   if (analyses.length === 0) {
-    issues.push({
-      severity: 'error',
-      message: 'no AI agent config found — add CLAUDE.md, .cursorrules, or similar',
-      fixable: true,
-      fixHint: 'run vet init to generate agent config',
-    });
-
+    // No agent config = not applicable, not a penalty
     return {
       name: 'config',
-      score: 10,
+      score: 100,
       maxScore: 100,
-      issues,
-      summary: 'no agent configs — critically under-configured',
+      issues: [{ severity: 'info', message: 'no AI agent config found — run vet init to generate one', fixable: true, fixHint: 'run vet init' }],
+      summary: 'no agent configs (n/a)',
     };
   }
 
