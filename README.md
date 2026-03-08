@@ -1,26 +1,63 @@
 # vet
 
-vet your AI-generated code. one command, nine checks, zero config.
+your AI coding agent doesn't know what it broke. you need a second opinion.
 
 ```bash
 npx @safetnsr/vet
 ```
 
+vet checks your codebase **before** and **after** AI coding sessions. before: is your repo set up so the agent does good work? after: did it leave behind anti-patterns, stale tests, leaked secrets, or technical debt?
+
 works with Claude Code, Cursor, Copilot, Codex, Aider, Windsurf, Cline — anything that writes code in a git repo.
 
-## what it checks
+## two flows, one command
 
-| check | what | how |
-|-------|------|-----|
-| **ready** | is your codebase AI-friendly? | scans structure, docs, types, tests |
-| **diff** | did the AI leave anti-patterns? | AI-specific patterns: wholesale rewrites, orphaned imports, catch-alls, over-commenting, plus secrets & stubs |
-| **models** | using deprecated AI models? | scans code for sunset model strings across OpenAI, Anthropic, Google, Cohere |
-| **config** | agent configs in place? | deep analysis of CLAUDE.md, .cursorrules, copilot-instructions — checks completeness, consistency, and specificity against your actual codebase |
-| **history** | git patterns healthy? | analyzes commit churn, AI attribution, large changes |
-| **scan** | malicious patterns in agent configs? | scans .claude/, .cursorrules, CLAUDE.md, .mcp/ for prompt injection, shell injection, exfiltration endpoints |
-| **secrets** | leaked secrets in build output? | scans dist/, build/, .next/ + .env files for API keys, tokens, connection strings using pattern + entropy analysis |
-| **receipt** | what did the last agent session do? | parses ~/.claude/projects/ JSONL session logs — files changed, commands run, packages installed, SHA256 integrity hash |
-| **debt** | AI-generated technical debt (duplicates, orphans, wrappers) | detects near-duplicate functions, orphaned exports, wrapper pass-throughs, naming drift |
+`npx @safetnsr/vet` runs everything. but the checks split into two categories:
+
+### before the session — is your codebase ready?
+
+| check | what it does |
+|-------|-------------|
+| **ready** | scores your codebase structure: docs, types, tests, AI-friendliness |
+| **config** | deep analysis of CLAUDE.md, .cursorrules, copilot-instructions — completeness, consistency, specificity |
+| **scan** | detects prompt injection, shell injection, exfiltration in agent config files |
+| **permissions** | flags MCP servers with dangerous filesystem access (writes to ~/.ssh, /etc, outside cwd) |
+| **models** | finds deprecated/sunset model strings across OpenAI, Anthropic, Google, Cohere |
+| **map** | verifies your codebase has navigable structure for agents |
+| **memory** | catches stale facts, contradictions, and drift in CLAUDE.md, AGENTS.md, memory/ files |
+
+a codebase that scores well here gives AI agents better context, fewer hallucinations, and less cleanup.
+
+### after the session — did the AI leave problems?
+
+| check | what it does |
+|-------|-------------|
+| **diff** | AI-specific anti-patterns: wholesale rewrites, orphaned imports, catch-all error handling, over-commenting |
+| **tests** | test theater: tautological assertions, empty test bodies, tests that prove nothing |
+| **debt** | near-duplicate functions, orphaned exports, wrapper pass-throughs, naming drift |
+| **secrets** | scans dist/, build/, .next/ + .env files for leaked API keys using pattern + entropy analysis |
+| **history** | git commit churn, AI attribution ratios, suspiciously large changes |
+| **receipt** | parses Claude Code session logs — files changed, commands run, packages installed, SHA256 integrity hash |
+
+plus: **integrity** (hallucinated imports), **deps** (unused/phantom dependencies), **owasp** (OWASP Top 10 for AI agents), **verify** (validates agent claims against actual changes).
+
+## output
+
+```
+  my-project  B  75/100
+
+  security     ████████░░  82   scan ✓  secrets ✓  config 3/10  owasp ✓
+  integrity    ███████░░░  68   diff: 3 issues  integrity ✓  memory: 1 stale
+  debt         ██████░░░░  58   ready 4/10  history ✓  debt: 2 duplicates
+  deps         ██████████  98   all clean
+
+  ✗ no README — AI agents have no project context
+  ✗ [ai] wholesale rewrite: 40 lines removed, 45 added in utils.ts
+  ! config: "strict TS" but tsconfig.strict is false
+  ! memory: CLAUDE.md references vitest but package.json uses jest
+
+  run --fix to auto-repair 4 issues
+```
 
 ## usage
 
@@ -28,19 +65,19 @@ works with Claude Code, Cursor, Copilot, Codex, Aider, Windsurf, Cline — anyth
 # run all checks
 npx @safetnsr/vet
 
-# check a specific directory
+# specific directory
 npx @safetnsr/vet ./my-project
 
 # auto-fix: generate CLAUDE.md, .cursorrules, fix deprecated models
 npx @safetnsr/vet --fix
 
-# check specific commit range
+# specific commit range
 npx @safetnsr/vet --since HEAD~5
 
 # live monitoring during AI sessions
 npx @safetnsr/vet --watch
 
-# CI mode — exit code 1 if score below threshold
+# CI mode — exit 1 if score below threshold
 npx @safetnsr/vet --ci
 
 # JSON output
@@ -49,78 +86,72 @@ npx @safetnsr/vet --json
 # generate configs + pre-commit hook
 npx @safetnsr/vet init
 
-# show last agent session receipt (ASCII or JSON)
+# agent session receipt
 npx @safetnsr/vet receipt
 npx @safetnsr/vet receipt --json
 ```
 
-## output
-
-```
-  my-project  7.5/10
-
-  ready       ████░░░░░░   4    3 readiness issues
-  diff        ████████░░   8    3 issues (2 AI-specific) in 5 files
-  models      ██████████  10    all models current
-  config      ███░░░░░░░   3    Cursor — needs work (3/10)
-  history     █████████░   9    41 commits (~15% AI-attributed)
-  scan        ██████████  10    no malicious patterns found
-  secrets     ██████████  10    no leaked secrets
-  receipt     ██████████  10    last session: 3 files, 2 commands
-
-  ✗ no README — AI agents have no project context
-  ✗ no tests — AI agents produce better code when tests exist
-  ! [ai] wholesale rewrite: 40 lines removed, 45 added in utils.ts
-  ! [ai] imported "lodash" but never used in new code
-
-  run --fix to auto-repair 4 issues
-```
-
 ## --fix
 
-`vet --fix` analyzes your codebase and generates project-specific configs:
+analyzes your codebase and generates project-specific configs:
 
 ```bash
 $ npx @safetnsr/vet --fix
 
   vet --fix
 
-  + CLAUDE.md (generated from codebase: Next.js + React, Vitest, Tailwind CSS, TypeScript)
+  + CLAUDE.md (generated: Next.js + React, Vitest, Tailwind CSS, TypeScript)
   + .cursorrules (generated)
   ✓ src/api.ts: "gpt-3.5-turbo" → "gpt-4o-mini"
 
   fixed 3 issues
 ```
 
-the generated CLAUDE.md includes your actual stack, directory structure, and framework-specific rules.
+the generated CLAUDE.md includes your actual stack, directory structure, and framework-specific rules — not a template.
 
-## AI-specific diff patterns
+## --watch
 
-| pattern | what it catches |
-|---------|----------------|
-| `[ai] wholesale rewrite` | AI rewrote an entire function when a small edit would suffice |
-| `[ai] orphaned imports` | AI added imports it never uses |
-| `[ai] catch-all handling` | `catch(e) { console.error(e) }` instead of specific error handling |
-| `[ai] comment density` | AI over-commented obvious code |
-| `[ai] empty test body` | AI stubbed a test without implementation |
-| `[ai] trivial assertion` | `expect(true).toBe(true)` — test proves nothing |
+monitors your repo during an active AI session. re-runs checks on every file change:
 
-## config analysis
-
-the config check does deep analysis — not just "does CLAUDE.md exist":
-
-```
-config score breakdown:
-  completeness:  4/10 — mentions typescript but not react, vitest
-  consistency:   7/10 — "strict TS" but tsconfig.strict is false
-  specificity:   3/10 — generic rules, nothing project-specific
+```bash
+npx @safetnsr/vet --watch
 ```
 
-## subcommands
+catch problems as the agent creates them, not after it's done.
 
-### `vet receipt`
+## CI/CD
 
-Shows a receipt for the last Claude Code agent session — what files it touched, what commands it ran, what packages it installed, plus a SHA256 integrity hash:
+```yaml
+# .github/workflows/vet.yml
+name: vet
+on: [pull_request]
+jobs:
+  vet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+      - run: npx @safetnsr/vet --ci
+```
+
+GitHub Action: [`safetnsr/vet-action`](https://github.com/safetnsr/vet-action) (coming soon)
+
+## config
+
+optional `.vetrc` in your project root:
+
+```json
+{
+  "checks": ["ready", "diff", "models", "config", "scan", "secrets"],
+  "ignore": ["vendor/", "generated/"],
+  "thresholds": { "min": 60 }
+}
+```
+
+## receipt
+
+shows what the last Claude Code session actually did — files touched, commands run, packages installed, with a SHA256 integrity hash:
 
 ```
 ╔══════════════════════════════════════════════╗
@@ -137,34 +168,6 @@ Shows a receipt for the last Claude Code agent session — what files it touched
 ╠══════════════════════════════════════════════╣
 ║ SHA256: 3a7f9c2e...                          ║
 ╚══════════════════════════════════════════════╝
-```
-
-## config
-
-create `.vetrc` in your project root (optional):
-
-```json
-{
-  "checks": ["ready", "diff", "models", "config", "history", "scan", "secrets", "receipt"],
-  "ignore": ["vendor/", "generated/"],
-  "thresholds": { "min": 6 }
-}
-```
-
-## ci
-
-```yaml
-# .github/workflows/vet.yml
-name: vet
-on: [pull_request]
-jobs:
-  vet:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 50
-      - run: npx @safetnsr/vet --ci
 ```
 
 ## zero dependencies

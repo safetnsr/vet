@@ -1,0 +1,21 @@
+name: vet
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  vet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: safetnsr/vet@v1
+        with:
+          threshold: '5.0'
+          # checks: 'security,integrity'  # optional: run specific checks only
+          # working-directory: 'packages/app'  # optional: monorepo support
