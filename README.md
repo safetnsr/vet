@@ -2,6 +2,8 @@
 
 your AI coding agent doesn't know what it broke. you need a second opinion.
 
+![vet demo](demo.gif)
+
 ```bash
 npx @safetnsr/vet
 ```
