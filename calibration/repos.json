@@ -1,0 +1,217 @@
+[
+  {
+    "repo": "sindresorhus/ky",
+    "expected_quality": "high",
+    "reason": "clean, typed, tested, CI"
+  },
+  {
+    "repo": "tj/commander.js",
+    "expected_quality": "high",
+    "reason": "well-structured, tested, docs"
+  },
+  {
+    "repo": "chalk/chalk",
+    "expected_quality": "high",
+    "reason": "minimal, typed, tested"
+  },
+  {
+    "repo": "micromatch/micromatch",
+    "expected_quality": "high",
+    "reason": "battle-tested, good structure"
+  },
+  {
+    "repo": "unjs/nitro",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI, modern"
+  },
+  {
+    "repo": "unjs/ofetch",
+    "expected_quality": "high",
+    "reason": "clean, typed, small"
+  },
+  {
+    "repo": "colinhacks/zod",
+    "expected_quality": "high",
+    "reason": "typed, extensively tested, well-documented"
+  },
+  {
+    "repo": "drizzle-team/drizzle-orm",
+    "expected_quality": "high",
+    "reason": "typed, tested, active"
+  },
+  {
+    "repo": "honojs/hono",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI, fast-growing"
+  },
+  {
+    "repo": "pinojs/pino",
+    "expected_quality": "high",
+    "reason": "typed, battle-tested logger"
+  },
+  {
+    "repo": "sindresorhus/p-limit",
+    "expected_quality": "high",
+    "reason": "tiny, typed, tested"
+  },
+  {
+    "repo": "antfu/ni",
+    "expected_quality": "high",
+    "reason": "typed, clean, CI"
+  },
+  {
+    "repo": "privatenumber/tsx",
+    "expected_quality": "high",
+    "reason": "typed, tested, clean"
+  },
+  {
+    "repo": "ai/nanoid",
+    "expected_quality": "high",
+    "reason": "tiny, typed, tested, CI"
+  },
+  {
+    "repo": "sindresorhus/ora",
+    "expected_quality": "high",
+    "reason": "typed, tested"
+  },
+  {
+    "repo": "unjs/consola",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI"
+  },
+  {
+    "repo": "sindresorhus/globby",
+    "expected_quality": "high",
+    "reason": "typed, tested"
+  },
+  {
+    "repo": "lukeed/mri",
+    "expected_quality": "medium",
+    "reason": "stale 26 months, test issues"
+  },
+  {
+    "repo": "unjs/defu",
+    "expected_quality": "high",
+    "reason": "tiny, typed, tested"
+  },
+  {
+    "repo": "egoist/tsup",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI"
+  },
+  {
+    "repo": "developit/preact",
+    "expected_quality": "high",
+    "reason": "typed, extensively tested, CI"
+  },
+  {
+    "repo": "lukeed/kleur",
+    "expected_quality": "medium",
+    "reason": "stale 45 months"
+  },
+  {
+    "repo": "sindresorhus/execa",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI"
+  },
+  {
+    "repo": "sindresorhus/got",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI"
+  },
+  {
+    "repo": "expressjs/express",
+    "expected_quality": "medium",
+    "reason": "no TS, legacy patterns, but tested"
+  },
+  {
+    "repo": "lodash/lodash",
+    "expected_quality": "medium",
+    "reason": "no TS, huge, some debt"
+  },
+  {
+    "repo": "moment/moment",
+    "expected_quality": "medium",
+    "reason": "deprecated, no TS, legacy"
+  },
+  {
+    "repo": "jprichardson/node-fs-extra",
+    "expected_quality": "high",
+    "reason": "well-tested, maintained, typed"
+  },
+  {
+    "repo": "enquirer/enquirer",
+    "expected_quality": "medium",
+    "reason": "aging, some debt"
+  },
+  {
+    "repo": "lukeed/polka",
+    "expected_quality": "medium",
+    "reason": "no TS, minimal tests"
+  },
+  {
+    "repo": "isaacs/minimatch",
+    "expected_quality": "high",
+    "reason": "typed, tested, actively maintained"
+  },
+  {
+    "repo": "safetnsr/vet",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI — our own"
+  },
+  {
+    "repo": "safetnsr/pinch",
+    "expected_quality": "high",
+    "reason": "typed, tested, our own"
+  },
+  {
+    "repo": "request/request",
+    "expected_quality": "low",
+    "reason": "deprecated, abandoned, security issues"
+  },
+  {
+    "repo": "bower/bower",
+    "expected_quality": "medium",
+    "reason": "deprecated package manager"
+  },
+  {
+    "repo": "dimsemenov/Magnific-Popup",
+    "expected_quality": "low",
+    "reason": "abandoned jQuery plugin"
+  },
+  {
+    "repo": "gruntjs/grunt",
+    "expected_quality": "medium",
+    "reason": "old but maintained, no TS"
+  },
+  {
+    "repo": "faisalman/ua-parser-js",
+    "expected_quality": "high",
+    "reason": "well-structured despite security history"
+  },
+  {
+    "repo": "mde/ejs",
+    "expected_quality": "medium",
+    "reason": "basic but functional, no TS"
+  },
+  {
+    "repo": "Marak/colors.js",
+    "expected_quality": "low",
+    "reason": "sabotaged, old patterns, no TS"
+  },
+  {
+    "repo": "HubSpot/pace",
+    "expected_quality": "low",
+    "reason": "abandoned, no tests, no TS, jQuery-era"
+  },
+  {
+    "repo": "desandro/masonry",
+    "expected_quality": "low",
+    "reason": "abandoned, no TS, old build system"
+  },
+  {
+    "repo": "videojs/video.js",
+    "expected_quality": "medium",
+    "reason": "large, complex, no TS, but tested"
+  }
+]

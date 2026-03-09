@@ -1,0 +1,15 @@
+{"repo":"sindresorhus/ky","expected_quality":"high","stars_tier":"top","score":91,"grade":"A","security":100,"integrity":90,"debt":87,"deps":80,"total_issues":0,"fixable_issues":18,"error":false}
+{"repo":"tj/commander.js","expected_quality":"high","stars_tier":"top","score":88,"grade":"A","security":100,"integrity":82,"debt":87,"deps":80,"total_issues":0,"fixable_issues":18,"error":false}
+{"repo":"chalk/chalk","expected_quality":"high","stars_tier":"top","score":95,"grade":"A","security":100,"integrity":90,"debt":100,"deps":80,"total_issues":0,"fixable_issues":17,"error":false}
+{"repo":"micromatch/micromatch","expected_quality":"high","stars_tier":"top","score":90,"grade":"A","security":100,"integrity":85,"debt":89,"deps":80,"total_issues":0,"fixable_issues":8,"error":false}
+{"repo":"unjs/nitro","expected_quality":"high","stars_tier":"top","score":80,"grade":"B","security":94,"integrity":79,"debt":88,"deps":20,"total_issues":0,"fixable_issues":145,"error":false}
+{"repo":"unjs/ofetch","expected_quality":"high","stars_tier":"top","score":100,"grade":"A","security":100,"integrity":100,"debt":100,"deps":95,"total_issues":0,"fixable_issues":9,"error":false}
+{"repo":"colinhacks/zod","expected_quality":"high","stars_tier":"top","score":69,"grade":"C","security":96,"integrity":72,"debt":53,"deps":20,"total_issues":0,"fixable_issues":1032,"error":false}
+{"repo":"drizzle-team/drizzle-orm","expected_quality":"high","stars_tier":"top","score":71,"grade":"B","security":100,"integrity":74,"debt":52,"deps":20,"total_issues":0,"fixable_issues":1006,"error":false}
+{"repo":"honojs/hono","expected_quality":"high","stars_tier":"top","score":74,"grade":"B","security":100,"integrity":76,"debt":63,"deps":20,"total_issues":0,"fixable_issues":171,"error":false}
+{"repo":"lucia-auth/lucia","expected_quality":"high","stars_tier":"mid","score":100,"grade":"A","security":100,"integrity":100,"debt":100,"deps":100,"total_issues":0,"fixable_issues":1,"error":false}
+{"repo":"sindresorhus/p-limit","expected_quality":"high","stars_tier":"mid","score":97,"grade":"A","security":100,"integrity":100,"debt":91,"deps":95,"total_issues":0,"fixable_issues":4,"error":false}
+{"repo":"antfu/ni","expected_quality":"high","stars_tier":"mid","score":96,"grade":"A","security":100,"integrity":89,"debt":100,"deps":100,"total_issues":0,"fixable_issues":14,"error":false}
+{"repo":"privatenumber/tsx","expected_quality":"high","stars_tier":"mid","score":86,"grade":"A","security":100,"integrity":76,"debt":100,"deps":40,"total_issues":0,"fixable_issues":29,"error":false}
+{"repo":"expressjs/express","expected_quality":"medium","stars_tier":"top","score":88,"grade":"A","security":100,"integrity":80,"debt":86,"deps":85,"total_issues":0,"fixable_issues":13,"error":false}
+{"repo":"lodash/lodash","expected_quality":"medium","stars_tier":"top","score":92,"grade":"A","security":100,"integrity":95,"debt":77,"deps":90,"total_issues":0,"fixable_issues":55,"error":false}
