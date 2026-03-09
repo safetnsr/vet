@@ -15,6 +15,8 @@ import { checkDebt } from './checks/debt.js';
 import { checkIntegrity } from './checks/integrity.js';
 import { checkArchitecture } from './checks/architecture.js';
 import { checkAIReady } from './checks/aiready.js';
+import { checkDeep } from './checks/deep.js';
+import { checkSemantic } from './checks/semantic.js';
 import { checkReceipt, runReceiptCommand } from './checks/receipt.js';
 import { checkMemory } from './checks/memory.js';
 import { checkVerify } from './checks/verify.js';
@@ -36,6 +38,7 @@ import type { VetConfig, CheckResult } from './types.js';
 
 const args = process.argv.slice(2);
 const flags = new Set(args.filter(a => a.startsWith('-') && !a.startsWith('--since')));
+const deepMode = flags.has('--deep');
 const flagMap = new Map<string, string>();
 
 // Parse --since=value or --since value, --max-files=value
@@ -350,6 +353,8 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     explainResult,
     architectureResult,
     aireadyResult,
+    deepResult,
+    semanticResult,
   ] = await Promise.all([
     withTimeout('scan', () => checkScan(cwd)),
     withTimeout('secrets', () => checkSecrets(cwd)),
@@ -374,6 +379,8 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     withTimeout('explain', () => checkExplain(cwd, since)),
     withTimeout('architecture', () => checkArchitecture(cwd)),
     withTimeout('aiready', () => checkAIReady(cwd)),
+    withTimeout('deep', () => checkDeep(cwd), 60_000),
+    withTimeout('semantic', () => checkSemantic(cwd), 60_000),
   ]);
 
   // Git-dependent checks (diff + history) — parallel with each other
@@ -391,7 +398,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     debt: [readyResult, historyResult, debtResult, bloatResult],
     deps: [depsResult],
     architecture: [architectureResult],
-    aiready: [aireadyResult],
+    aiready: [aireadyResult, deepResult, semanticResult],
   });
   } catch (e) {
     console.error('check failed:', e instanceof Error ? e.message : e);

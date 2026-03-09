@@ -1,6 +1,6 @@
 {
   "name": "@safetnsr/vet",
-  "version": "1.18.0",
+  "version": "1.19.0",
   "description": "vet your AI-generated code — one command, one score card, one letter grade",
   "type": "module",
   "bin": {
@@ -35,12 +35,15 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=18"
   },
   "optionalDependencies": {
     "@safetnsr/model-graveyard": "^0.2.0"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.8.1"
   }
 }
