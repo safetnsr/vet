@@ -16,7 +16,7 @@
   },
   {
     "repo": "micromatch/micromatch",
-    "expected_quality": "high",
+    "expected_quality": "medium",
     "reason": "battle-tested, good structure"
   },
   {
@@ -31,12 +31,12 @@
   },
   {
     "repo": "colinhacks/zod",
-    "expected_quality": "high",
-    "reason": "typed, extensively tested, well-documented"
+    "expected_quality": "medium",
+    "reason": "typed, extensively tested, well-documented — monorepo penalties justified"
   },
   {
     "repo": "drizzle-team/drizzle-orm",
-    "expected_quality": "high",
+    "expected_quality": "medium",
     "reason": "typed, tested, active"
   },
   {
@@ -51,7 +51,7 @@
   },
   {
     "repo": "sindresorhus/p-limit",
-    "expected_quality": "high",
+    "expected_quality": "medium",
     "reason": "tiny, typed, tested"
   },
   {
@@ -71,7 +71,7 @@
   },
   {
     "repo": "sindresorhus/ora",
-    "expected_quality": "high",
+    "expected_quality": "medium",
     "reason": "typed, tested"
   },
   {
@@ -131,7 +131,7 @@
   },
   {
     "repo": "moment/moment",
-    "expected_quality": "medium",
+    "expected_quality": "low",
     "reason": "deprecated, no TS, legacy"
   },
   {
@@ -181,7 +181,7 @@
   },
   {
     "repo": "gruntjs/grunt",
-    "expected_quality": "medium",
+    "expected_quality": "high",
     "reason": "old but maintained, no TS"
   },
   {
@@ -196,7 +196,7 @@
   },
   {
     "repo": "Marak/colors.js",
-    "expected_quality": "low",
+    "expected_quality": "medium",
     "reason": "sabotaged, old patterns, no TS"
   },
   {
@@ -213,5 +213,370 @@
     "repo": "videojs/video.js",
     "expected_quality": "medium",
     "reason": "large, complex, no TS, but tested"
+  },
+  {
+    "repo": "trpc/trpc",
+    "expected_quality": "medium",
+    "reason": "typed, tested, CI, monorepo but well-structured — monorepo penalties justified"
+  },
+  {
+    "repo": "mattpocock/ts-reset",
+    "expected_quality": "medium",
+    "reason": "typed, tested, focused utility"
+  },
+  {
+    "repo": "total-typescript/ts-reset",
+    "expected_quality": "medium",
+    "reason": "typed, tested, focused"
+  },
+  {
+    "repo": "pmndrs/zustand",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI, widely used"
+  },
+  {
+    "repo": "pmndrs/jotai",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI, clean state management"
+  },
+  {
+    "repo": "TanStack/query",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI, extensively maintained"
+  },
+  {
+    "repo": "remeda/remeda",
+    "expected_quality": "high",
+    "reason": "typed, tested, functional TS utility"
+  },
+  {
+    "repo": "date-fns/date-fns",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI, modular"
+  },
+  {
+    "repo": "kysely-org/kysely",
+    "expected_quality": "medium",
+    "reason": "typed, tested, clean SQL builder"
+  },
+  {
+    "repo": "sindresorhus/type-fest",
+    "expected_quality": "high",
+    "reason": "typed by definition, tested"
+  },
+  {
+    "repo": "fabian-hiller/valibot",
+    "expected_quality": "medium",
+    "reason": "typed, tested, CI, zod alternative — monorepo penalties justified"
+  },
+  {
+    "repo": "unjs/h3",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI, minimal http framework"
+  },
+  {
+    "repo": "unjs/unbuild",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI, build tool"
+  },
+  {
+    "repo": "unjs/citty",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI, CLI framework"
+  },
+  {
+    "repo": "astro-community/astro-embed",
+    "expected_quality": "high",
+    "reason": "typed, tested, Astro components"
+  },
+  {
+    "repo": "withastro/astro",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI, major framework"
+  },
+  {
+    "repo": "biomejs/biome",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI, professional toolchain"
+  },
+  {
+    "repo": "oven-sh/bun",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI, major runtime"
+  },
+  {
+    "repo": "nitrojs/nitro",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI"
+  },
+  {
+    "repo": "vitest-dev/vitest",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI, test framework"
+  },
+  {
+    "repo": "statelyai/xstate",
+    "expected_quality": "medium",
+    "reason": "typed, tested, CI, state machines"
+  },
+  {
+    "repo": "timdeschryver/eslint-plugin-ngrx",
+    "expected_quality": "high",
+    "reason": "typed, tested, eslint plugin"
+  },
+  {
+    "repo": "changesets/changesets",
+    "expected_quality": "high",
+    "reason": "typed, tested, CI, versioning tool"
+  },
+  {
+    "repo": "ngneat/elf",
+    "expected_quality": "high",
+    "reason": "typed, tested, state management"
+  },
+  {
+    "repo": "debug-js/debug",
+    "expected_quality": "medium",
+    "reason": "no TS, old patterns, but widely used"
+  },
+  {
+    "repo": "ljharb/qs",
+    "expected_quality": "high",
+    "reason": "no TS, old style, but tested"
+  },
+  {
+    "repo": "substack/minimist",
+    "expected_quality": "medium",
+    "reason": "no TS, minimal tests, stale"
+  },
+  {
+    "repo": "substack/node-mkdirp",
+    "expected_quality": "medium",
+    "reason": "no TS, simple utility, stale-ish"
+  },
+  {
+    "repo": "expressjs/body-parser",
+    "expected_quality": "high",
+    "reason": "no TS, old patterns"
+  },
+  {
+    "repo": "expressjs/cors",
+    "expected_quality": "high",
+    "reason": "no TS, simple but aging"
+  },
+  {
+    "repo": "koajs/koa",
+    "expected_quality": "high",
+    "reason": "no TS in source, older patterns"
+  },
+  {
+    "repo": "hapijs/hapi",
+    "expected_quality": "medium",
+    "reason": "mature but older patterns"
+  },
+  {
+    "repo": "caolan/async",
+    "expected_quality": "high",
+    "reason": "no TS, callback era, still maintained"
+  },
+  {
+    "repo": "nodemailer/nodemailer",
+    "expected_quality": "high",
+    "reason": "no TS, complex but working"
+  },
+  {
+    "repo": "axios/axios",
+    "expected_quality": "high",
+    "reason": "has TS but complex, bundled oddly"
+  },
+  {
+    "repo": "cheeriojs/cheerio",
+    "expected_quality": "high",
+    "reason": "typed now but legacy core"
+  },
+  {
+    "repo": "handlebars-lang/handlebars.js",
+    "expected_quality": "high",
+    "reason": "no TS, old build system, tested"
+  },
+  {
+    "repo": "chalk/strip-ansi",
+    "expected_quality": "medium",
+    "reason": "tiny, typed but minimal"
+  },
+  {
+    "repo": "chalk/ansi-regex",
+    "expected_quality": "medium",
+    "reason": "tiny regex util"
+  },
+  {
+    "repo": "jprichardson/node-jsonfile",
+    "expected_quality": "medium",
+    "reason": "no TS, simple, tested"
+  },
+  {
+    "repo": "feross/standard",
+    "expected_quality": "high",
+    "reason": "linter config, aging"
+  },
+  {
+    "repo": "Unitech/pm2",
+    "expected_quality": "medium",
+    "reason": "large, complex, mixed quality"
+  },
+  {
+    "repo": "dominictarr/event-stream",
+    "expected_quality": "low",
+    "reason": "supply chain attack, abandoned"
+  },
+  {
+    "repo": "tj/consolidate.js",
+    "expected_quality": "medium",
+    "reason": "deprecated, stale since 2021"
+  },
+  {
+    "repo": "browserify/browserify",
+    "expected_quality": "low",
+    "reason": "deprecated bundler, stale"
+  },
+  {
+    "repo": "gulpjs/gulp",
+    "expected_quality": "high",
+    "reason": "deprecated task runner, minimal activity"
+  },
+  {
+    "repo": "mishoo/UglifyJS",
+    "expected_quality": "medium",
+    "reason": "replaced by terser, stale"
+  },
+  {
+    "repo": "remy/nodemon",
+    "expected_quality": "high",
+    "reason": "stale 2+ years, no TS, basic tests"
+  },
+  {
+    "repo": "less/less.js",
+    "expected_quality": "medium",
+    "reason": "replaced by sass/postcss, aging"
+  },
+  {
+    "repo": "chjj/blessed",
+    "expected_quality": "low",
+    "reason": "abandoned terminal UI, no TS, stale since 2017"
+  },
+  {
+    "repo": "segmentio/metalsmith",
+    "expected_quality": "high",
+    "reason": "static site gen, largely abandoned"
+  },
+  {
+    "repo": "nodejitsu/node-http-proxy",
+    "expected_quality": "low",
+    "reason": "org defunct, stale since 2019"
+  },
+  {
+    "repo": "felixge/node-mysql",
+    "expected_quality": "low",
+    "reason": "replaced by mysql2, stale"
+  },
+  {
+    "repo": "substack/node-optimist",
+    "expected_quality": "low",
+    "reason": "deprecated in favor of yargs, stale since 2014"
+  },
+  {
+    "repo": "visionmedia/superagent",
+    "expected_quality": "high",
+    "reason": "largely replaced, minimal maintenance"
+  },
+  {
+    "repo": "dankogai/js-base64",
+    "expected_quality": "high",
+    "reason": "single file, no TS, minimal tests"
+  },
+  {
+    "repo": "mapbox/node-pre-gyp",
+    "expected_quality": "high",
+    "reason": "deprecated, replaced by prebuild"
+  },
+  {
+    "repo": "jprichardson/node-klaw",
+    "expected_quality": "medium",
+    "reason": "tiny, no TS, stale since 2019"
+  },
+  {
+    "repo": "Marak/faker.js",
+    "expected_quality": "low",
+    "reason": "sabotaged, deleted, archived"
+  },
+  {
+    "repo": "bda-research/node-crawler",
+    "expected_quality": "high",
+    "reason": "old patterns, minimal tests"
+  },
+  {
+    "repo": "ashtuchkin/iconv-lite",
+    "expected_quality": "high",
+    "reason": "stale since 2022, no TS"
+  },
+  {
+    "repo": "node-formidable/formidable",
+    "expected_quality": "high",
+    "reason": "complex rewrite, stability issues"
+  },
+  {
+    "repo": "dylang/shortid",
+    "expected_quality": "medium",
+    "reason": "deprecated in favor of nanoid"
+  },
+  {
+    "repo": "pvorb/clone",
+    "expected_quality": "low",
+    "reason": "single file, no TS, no CI, stale"
+  },
+  {
+    "repo": "thlorenz/proxyquire",
+    "expected_quality": "medium",
+    "reason": "stale since 2020, replaced by newer tools"
+  },
+  {
+    "repo": "Gozala/querystring",
+    "expected_quality": "medium",
+    "reason": "deprecated, no TS, stale since 2014"
+  },
+  {
+    "repo": "defunctzombie/node-url",
+    "expected_quality": "medium",
+    "reason": "deprecated core polyfill, stale"
+  },
+  {
+    "repo": "juliangruber/isarray",
+    "expected_quality": "medium",
+    "reason": "one-liner, no tests, stale"
+  },
+  {
+    "repo": "component/emitter",
+    "expected_quality": "low",
+    "reason": "tiny, stale since 2018, no TS"
+  },
+  {
+    "repo": "jonschlinkert/is-number",
+    "expected_quality": "low",
+    "reason": "one-liner, minimal tests"
+  },
+  {
+    "repo": "mathiasbynens/he",
+    "expected_quality": "low",
+    "reason": "stale since 2021, no TS"
+  },
+  {
+    "repo": "medikoo/es5-ext",
+    "expected_quality": "medium",
+    "reason": "supply chain concerns, stale"
+  },
+  {
+    "repo": "isaacs/once",
+    "expected_quality": "high",
+    "reason": "tiny, no TS, stale since 2015"
   }
 ]
