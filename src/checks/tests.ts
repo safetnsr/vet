@@ -254,13 +254,16 @@ export function checkTests(cwd: string, ignore: string[]): CheckResult {
     issues.push(...findDuplicateDescribes(lines, rel));
   }
 
+  // Size-normalized scoring: scale penalties by test file count
+  // A repo with 150 test files will have more absolute issues than one with 5
+  const testScale = testFiles.length <= 5 ? 1.0 : Math.max(0.15, 1.0 - Math.log10(testFiles.length / 5) * 0.5);
   let score = 100;
   for (const issue of issues) {
-    if (issue.severity === 'error') score -= 8;
-    else if (issue.severity === 'warning') score -= 4;
-    else score -= 2;
+    if (issue.severity === 'error') score -= 8 * testScale;
+    else if (issue.severity === 'warning') score -= 4 * testScale;
+    else score -= 2 * testScale;
   }
-  score = Math.max(0, score);
+  score = Math.max(0, Math.round(score));
 
   const summary = issues.length > 0
     ? `${issues.length} test anti-pattern${issues.length !== 1 ? 's' : ''} found across ${testFiles.length} test file${testFiles.length !== 1 ? 's' : ''}`

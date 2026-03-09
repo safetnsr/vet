@@ -536,8 +536,11 @@ export async function checkDeps(cwd: string): Promise<CheckResult> {
   // ── Scoring ────────────────────────────────────────────────────────────────
   const errors = issues.filter(i => i.severity === 'error').length;
   const warnings = issues.filter(i => i.severity === 'warning').length;
-  const rawScore = 100 - (errors * 20) - (warnings * 5);
-  const finalScore = Math.max(0, Math.min(100, rawScore));
+  // Scale by dependency count: more deps = more chances for warnings
+  const depCount = declaredNames.length;
+  const depScale = depCount <= 5 ? 1.0 : Math.max(0.3, 1.0 - Math.log10(depCount / 5) * 0.4);
+  const rawScore = 100 - (errors * 20 * depScale) - (warnings * 5 * depScale);
+  const finalScore = Math.max(0, Math.min(100, Math.round(rawScore)));
 
   // ── Summary ────────────────────────────────────────────────────────────────
   const parts: string[] = [];

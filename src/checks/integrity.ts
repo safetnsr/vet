@@ -555,15 +555,19 @@ export async function checkIntegrity(cwd: string, ignore: string[]): Promise<Che
     ...unhandledAsyncIssues,
   ];
 
-  // Scoring: start at 100, penalize per issue type
+  // Scoring: start at 100, penalize per issue type (size-normalized)
+  const srcFiles = files.filter(f => /\.(ts|tsx|js|jsx|mts|mjs)$/.test(f));
+  const fileCount = srcFiles.length;
+  const sizeScale = fileCount <= 10 ? 1.0 : Math.max(0.3, 1.0 - Math.log10(fileCount / 10) * 0.4);
+
   let score = 100;
-  score -= hallucinatedIssues.length * 10;
-  score -= emptyCatchIssues.filter(i => i.severity === 'error').length * 8;
-  score -= emptyCatchIssues.filter(i => i.severity === 'warning').length * 3;
-  score -= stubbedTestIssues.filter(i => i.severity === 'error').length * 5;
+  score -= hallucinatedIssues.length * 10 * sizeScale;
+  score -= emptyCatchIssues.filter(i => i.severity === 'error').length * 8 * sizeScale;
+  score -= emptyCatchIssues.filter(i => i.severity === 'warning').length * 3 * sizeScale;
+  score -= stubbedTestIssues.filter(i => i.severity === 'error').length * 5 * sizeScale;
   // Unhandled async capped at -15 (only count warnings, not info-downgraded ones)
   const unhandledWarnings = unhandledAsyncIssues.filter(i => i.severity === 'warning').length;
-  score -= Math.min(15, unhandledWarnings * 3);
+  score -= Math.min(15, unhandledWarnings * 3 * sizeScale);
   score = Math.max(0, Math.round(score));
 
   // Summary parts

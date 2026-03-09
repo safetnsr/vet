@@ -446,7 +446,11 @@ export function checkVerify(cwd: string, since?: string): CheckResult {
     verified++;
   }
 
-  const finalScore = Math.max(0, 100 - deductions);
+  // Score based on pass rate rather than absolute deductions
+  // This prevents large codebases with many verified claims from being unfairly penalized
+  const totalClaims = verified + failed;
+  const passRate = totalClaims > 0 ? verified / totalClaims : 1;
+  const finalScore = totalClaims === 0 ? 100 : Math.max(0, Math.round(passRate * 100));
 
   const baseSummary = failed === 0
     ? `${verified} agent claim${verified !== 1 ? 's' : ''} verified clean`

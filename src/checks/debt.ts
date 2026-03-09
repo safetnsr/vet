@@ -556,14 +556,20 @@ export async function checkDebt(cwd: string, ignore: string[]): Promise<CheckRes
   const driftIssues = findNamingDrift(allFuncs);
   issues.push(...driftIssues);
 
-  // ── Scoring ──────────────────────────────────────────────────────────────
-  const dupPenalty = Math.min(50, dupIssues.length * 8);
+  // ── Scoring (size-normalized) ─────────────────────────────────────────────
+  // Scale penalties by project size: a repo with 200 files should tolerate
+  // more absolute issues than one with 10 files. The scaling factor ranges
+  // from 1.0 (≤10 files) to 0.3 (500+ files), using log scale.
+  const fileCount = sourceFiles.length;
+  const sizeScale = fileCount <= 10 ? 1.0 : Math.max(0.3, 1.0 - Math.log10(fileCount / 10) * 0.4);
+
+  const dupPenalty = Math.min(50, dupIssues.length * 8) * sizeScale;
   const orphanWarnings = orphanIssues.filter(i => i.severity === 'warning');
-  const orphanPenalty = Math.min(30, orphanWarnings.length * 5);
+  const orphanPenalty = Math.min(30, orphanWarnings.length * 5) * sizeScale;
   const wrapperWarnings = wrapperIssues.filter(i => i.severity === 'warning');
   const driftWarnings = driftIssues.filter(i => i.severity === 'warning');
-  const wrapperPenalty = Math.min(15, wrapperWarnings.length * 3);
-  const driftPenalty = Math.min(10, driftWarnings.length * 2);
+  const wrapperPenalty = Math.min(15, wrapperWarnings.length * 3) * sizeScale;
+  const driftPenalty = Math.min(10, driftWarnings.length * 2) * sizeScale;
 
   const rawScore = 100 - dupPenalty - orphanPenalty - wrapperPenalty - driftPenalty;
   const finalScore = Math.max(0, Math.round(rawScore));

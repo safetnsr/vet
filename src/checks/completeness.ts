@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { execSync } from 'node:child_process';
 import { walkFiles, readFile } from '../util.js';
 import type { CheckResult, Issue } from '../types.js';
 
@@ -108,6 +109,34 @@ export async function checkCompleteness(cwd: string, ignore: string[]): Promise<
                 existsSync(join(cwd, '.gitlab-ci.yml')) ||
                 existsSync(join(cwd, '.circleci'));
   if (hasCI) points += 10;
+
+  // ── Git freshness (0-10 points, negative for very stale) ──
+  try {
+    const lastCommit = execSync('git log -1 --format=%ct', { cwd, stdio: ['pipe', 'pipe', 'pipe'] }).toString().trim();
+    const ageMonths = (Date.now() / 1000 - parseInt(lastCommit)) / (30 * 24 * 3600);
+    if (ageMonths < 6) {
+      points += 10; // actively maintained
+    } else if (ageMonths < 12) {
+      points += 5;
+    } else if (ageMonths < 24) {
+      // no bonus, no penalty
+      issues.push({
+        file: '',
+        message: `last commit ${Math.round(ageMonths)} months ago`,
+        severity: 'info',
+        fixable: false,
+      });
+    } else {
+      // Stale: actively penalize
+      points -= 15;
+      issues.push({
+        file: '',
+        message: `last commit ${Math.round(ageMonths)} months ago — likely abandoned`,
+        severity: 'warning',
+        fixable: false,
+      });
+    }
+  } catch { /* not a git repo or no commits */ }
 
   // ── Linting/Formatting (0-10 points) ──
   const hasLint = existsSync(join(cwd, '.eslintrc.json')) ||

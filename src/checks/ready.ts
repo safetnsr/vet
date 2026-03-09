@@ -145,7 +145,10 @@ function builtinReady(cwd: string, ignore: string[]): CheckResult {
   const errors = issues.filter(i => i.severity === 'error').length;
   const warnings = issues.filter(i => i.severity === 'warning').length;
   const infos = issues.filter(i => i.severity === 'info').length;
-  const score = Math.max(0, Math.min(100, 100 - errors * 30 - warnings * 15 - infos * 3));
+  // Scale penalties for monorepos / large projects — more files = more structural issues found
+  const totalFiles = files.length;
+  const readyScale = totalFiles <= 20 ? 1.0 : Math.max(0.4, 1.0 - Math.log10(totalFiles / 20) * 0.35);
+  const score = Math.max(0, Math.min(100, 100 - errors * 30 * readyScale - warnings * 15 * readyScale - infos * 3 * readyScale));
 
   let summary = issues.length === 0 ? 'codebase is well-structured for AI' : `${issues.length} readiness issues`;
   if (isMonorepo) summary += ' (monorepo detected)';
