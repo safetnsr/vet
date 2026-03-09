@@ -18,6 +18,7 @@ import { checkAIReady } from './checks/aiready.js';
 import { checkDeep } from './checks/deep.js';
 import { checkSemantic } from './checks/semantic.js';
 import { checkHotspots } from './checks/hotspots.js';
+import { checkClones } from './checks/clones.js';
 import { checkReceipt, runReceiptCommand } from './checks/receipt.js';
 import { checkMemory } from './checks/memory.js';
 import { checkVerify } from './checks/verify.js';
@@ -357,6 +358,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     deepResult,
     semanticResult,
     hotspotsResult,
+    clonesResult,
   ] = await Promise.all([
     withTimeout('scan', () => checkScan(cwd)),
     withTimeout('secrets', () => checkSecrets(cwd)),
@@ -384,6 +386,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     withTimeout('deep', () => checkDeep(cwd), 60_000),
     withTimeout('semantic', () => checkSemantic(cwd), 60_000),
     withTimeout('hotspots', () => checkHotspots(cwd), 30_000),
+    withTimeout('clones', () => checkClones(cwd), 60_000),
   ]);
 
   // Git-dependent checks (diff + history) — parallel with each other
@@ -398,7 +401,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
   return score(cwd, {
     security: [scanResult, secretsResult, configResult, modelsResult, owaspResult, permissionsResult, subsidyResult, guardResult],
     integrity: [diffResult, integrityResult, receiptResult, compactResult, memoryResult, verifyResult, testsResult, loopResult, completenessResult, explainResult],
-    debt: [readyResult, historyResult, debtResult, bloatResult],
+    debt: [readyResult, historyResult, debtResult, bloatResult, clonesResult],
     deps: [depsResult],
     architecture: [architectureResult],
     aiready: [aireadyResult, deepResult, semanticResult],
