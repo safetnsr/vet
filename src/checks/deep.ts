@@ -29,6 +29,26 @@ const BRANCHING_KINDS = new Set([
   ts.SyntaxKind.BinaryExpression, // for && and || short-circuits
 ]);
 
+interface HalsteadMetrics {
+  operators: number;       // N1: total operators
+  operands: number;        // N2: total operands
+  uniqueOperators: number; // n1: unique operators
+  uniqueOperands: number;  // n2: unique operands
+  vocabulary: number;      // n = n1 + n2
+  length: number;          // N = N1 + N2
+  volume: number;          // V = N × log2(n)
+  difficulty: number;      // D = (n1/2) × (N2/n2)
+  effort: number;          // E = D × V
+}
+
+interface FileMetrics {
+  file: string;
+  sloc: number;
+  cyclomatic: number;
+  halstead: HalsteadMetrics;
+  maintainabilityIndex: number; // MI = 171 - 5.2×ln(V) - 0.23×CC - 16.2×ln(SLOC)
+}
+
 interface FuncMetrics {
   name: string;
   file: string;
@@ -145,6 +165,103 @@ function analyzeFunction(node: ts.Node, file: string, src: ts.SourceFile): FuncM
   };
 }
 
+// ── Halstead metrics + Maintainability Index ────────────────────────────────
+
+const OPERATOR_KINDS = new Set([
+  ts.SyntaxKind.PlusToken, ts.SyntaxKind.MinusToken, ts.SyntaxKind.AsteriskToken,
+  ts.SyntaxKind.SlashToken, ts.SyntaxKind.PercentToken, ts.SyntaxKind.EqualsToken,
+  ts.SyntaxKind.PlusEqualsToken, ts.SyntaxKind.MinusEqualsToken,
+  ts.SyntaxKind.AsteriskEqualsToken, ts.SyntaxKind.SlashEqualsToken,
+  ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.EqualsEqualsEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken,
+  ts.SyntaxKind.LessThanToken, ts.SyntaxKind.GreaterThanToken,
+  ts.SyntaxKind.LessThanEqualsToken, ts.SyntaxKind.GreaterThanEqualsToken,
+  ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken,
+  ts.SyntaxKind.ExclamationToken, ts.SyntaxKind.QuestionQuestionToken,
+  ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken,
+  ts.SyntaxKind.AmpersandToken, ts.SyntaxKind.BarToken,
+  ts.SyntaxKind.CaretToken, ts.SyntaxKind.TildeToken,
+  ts.SyntaxKind.DotDotDotToken,
+]);
+
+const KEYWORD_OPERATOR_KINDS = new Set([
+  ts.SyntaxKind.IfStatement, ts.SyntaxKind.ElseKeyword,
+  ts.SyntaxKind.ForStatement, ts.SyntaxKind.ForInStatement, ts.SyntaxKind.ForOfStatement,
+  ts.SyntaxKind.WhileStatement, ts.SyntaxKind.DoStatement,
+  ts.SyntaxKind.SwitchStatement, ts.SyntaxKind.CaseClause,
+  ts.SyntaxKind.ReturnStatement, ts.SyntaxKind.ThrowStatement,
+  ts.SyntaxKind.TryStatement, ts.SyntaxKind.CatchClause,
+  ts.SyntaxKind.NewExpression, ts.SyntaxKind.DeleteExpression,
+  ts.SyntaxKind.TypeOfExpression, ts.SyntaxKind.VoidExpression,
+  ts.SyntaxKind.AwaitExpression, ts.SyntaxKind.YieldExpression,
+]);
+
+function computeHalstead(src: ts.SourceFile): HalsteadMetrics {
+  const operators = new Map<string, number>();
+  const operands = new Map<string, number>();
+
+  function countToken(map: Map<string, number>, key: string) {
+    map.set(key, (map.get(key) || 0) + 1);
+  }
+
+  function walk(node: ts.Node) {
+    // Operators: binary/unary/assignment operators + keyword operators
+    if (ts.isBinaryExpression(node)) {
+      countToken(operators, ts.SyntaxKind[node.operatorToken.kind]);
+    } else if (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) {
+      countToken(operators, ts.SyntaxKind[node.operator]);
+    } else if (KEYWORD_OPERATOR_KINDS.has(node.kind)) {
+      countToken(operators, ts.SyntaxKind[node.kind]);
+    } else if (ts.isCallExpression(node)) {
+      countToken(operators, 'Call');
+    } else if (ts.isPropertyAccessExpression(node)) {
+      countToken(operators, 'PropertyAccess');
+    }
+
+    // Operands: identifiers, literals
+    if (ts.isIdentifier(node)) {
+      countToken(operands, node.text);
+    } else if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+      countToken(operands, `"${node.text.slice(0, 20)}"`);
+    } else if (ts.isNumericLiteral(node)) {
+      countToken(operands, node.text);
+    }
+
+    ts.forEachChild(node, walk);
+  }
+
+  walk(src);
+
+  const n1 = operators.size;
+  const n2 = operands.size;
+  const N1 = Array.from(operators.values()).reduce((a, b) => a + b, 0);
+  const N2 = Array.from(operands.values()).reduce((a, b) => a + b, 0);
+  const n = n1 + n2;
+  const N = N1 + N2;
+  const volume = n > 0 ? N * Math.log2(n) : 0;
+  const difficulty = n2 > 0 ? (n1 / 2) * (N2 / n2) : 0;
+  const effort = difficulty * volume;
+
+  return {
+    operators: N1, operands: N2,
+    uniqueOperators: n1, uniqueOperands: n2,
+    vocabulary: n, length: N,
+    volume, difficulty, effort,
+  };
+}
+
+function computeMI(halsteadVolume: number, cyclomatic: number, sloc: number): number {
+  // Standard Maintainability Index formula (SEI, 1992)
+  // MI = 171 - 5.2 × ln(V) - 0.23 × CC - 16.2 × ln(SLOC)
+  // Clamped to [0, 100]
+  if (halsteadVolume <= 0 || sloc <= 0) return 100;
+  const mi = 171
+    - 5.2 * Math.log(halsteadVolume)
+    - 0.23 * cyclomatic
+    - 16.2 * Math.log(sloc);
+  return Math.max(0, Math.min(100, mi));
+}
+
 // ── Naming analysis (heuristic, no ML) ──────────────────────────────────────
 
 function isDescriptiveName(name: string): 'good' | 'unclear' | 'too-short' {
@@ -167,6 +284,7 @@ export async function checkDeep(cwd: string): Promise<CheckResult> {
 
   const issues: Issue[] = [];
   const allMetrics: FuncMetrics[] = [];
+  const allFileMetrics: FileMetrics[] = [];
   const t0 = Date.now();
 
   for (const file of sourceFiles) {
@@ -176,15 +294,27 @@ export async function checkDeep(cwd: string): Promise<CheckResult> {
     try {
       const src = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true);
 
+      // Per-function analysis
+      let fileCyclomatic = 1; // base complexity
       function visit(node: ts.Node) {
         if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) ||
             ts.isMethodDeclaration(node) || ts.isArrowFunction(node)) {
           const metrics = analyzeFunction(node, file, src);
-          if (metrics) allMetrics.push(metrics);
+          if (metrics) {
+            allMetrics.push(metrics);
+            fileCyclomatic += metrics.cyclomatic - 1; // add function's complexity
+          }
         }
         ts.forEachChild(node, visit);
       }
       visit(src);
+
+      // Per-file: Halstead + MI
+      const halstead = computeHalstead(src);
+      const sloc = content.split('\n').filter(l => l.trim() && !l.trim().startsWith('//')).length;
+      const mi = computeMI(halstead.volume, fileCyclomatic, sloc);
+
+      allFileMetrics.push({ file, sloc, cyclomatic: fileCyclomatic, halstead, maintainabilityIndex: mi });
     } catch {
       // Skip files that can't be parsed
     }
@@ -293,6 +423,30 @@ export async function checkDeep(cwd: string): Promise<CheckResult> {
     });
   }
 
+  // ── Maintainability Index ──────────────────────────────────────────────────
+  const lowMI = allFileMetrics.filter(f => f.maintainabilityIndex < 20).sort((a, b) => a.maintainabilityIndex - b.maintainabilityIndex);
+  const mediumMI = allFileMetrics.filter(f => f.maintainabilityIndex >= 20 && f.maintainabilityIndex < 40);
+
+  for (const fm of lowMI.slice(0, 3)) {
+    issues.push({
+      severity: 'warning',
+      message: `low maintainability: ${fm.file} has MI=${fm.maintainabilityIndex.toFixed(0)} (halstead volume ${fm.halstead.volume.toFixed(0)}, CC ${fm.cyclomatic}, ${fm.sloc} SLOC)`,
+      file: fm.file,
+      fixable: true,
+      fixHint: 'reduce complexity and file size — split into smaller modules',
+    });
+  }
+
+  if (mediumMI.length > 5) {
+    issues.push({
+      severity: 'info',
+      message: `${mediumMI.length} files with moderate maintainability (MI 20-40)`,
+      file: mediumMI[0].file,
+      fixable: true,
+      fixHint: 'consider refactoring the most complex files',
+    });
+  }
+
   // ── Scoring ───────────────────────────────────────────────────────────────
   const total = allMetrics.length;
 
@@ -312,16 +466,25 @@ export async function checkDeep(cwd: string): Promise<CheckResult> {
   const namingOk = allMetrics.filter(f => isDescriptiveName(f.name) === 'good').length;
   const namingScore = Math.round((namingOk / total) * 100);
 
+  // Maintainability Index score: average MI across files, normalized to 0-100
+  const avgMI = allFileMetrics.length > 0
+    ? allFileMetrics.reduce((sum, f) => sum + f.maintainabilityIndex, 0) / allFileMetrics.length
+    : 100;
+  const miScore = Math.round(avgMI);
+
   const score = Math.max(25, Math.round(
-    complexityScore * 0.35 +
-    nestingScore * 0.25 +
-    errorScore * 0.25 +
-    namingScore * 0.15
+    complexityScore * 0.25 +
+    nestingScore * 0.20 +
+    errorScore * 0.20 +
+    namingScore * 0.10 +
+    miScore * 0.25
   ));
 
   // ── Summary ───────────────────────────────────────────────────────────────
   const parts: string[] = [];
-  parts.push(`${total} functions analyzed in ${elapsed}ms`);
+  parts.push(`${total} functions, ${allFileMetrics.length} files in ${elapsed}ms`);
+  parts.push(`avg MI=${avgMI.toFixed(0)}`);
+  if (lowMI.length > 0) parts.push(c.red + `${lowMI.length} unmaintainable` + c.reset);
   if (highComplexity.length > 0) parts.push(c.yellow + `${highComplexity.length} complex` + c.reset);
   if (deeplyNested.length > 0) parts.push(c.yellow + `${deeplyNested.length} deeply nested` + c.reset);
   if (emptyCatches.length > 0) parts.push(c.red + `${emptyCatches.length} empty catches` + c.reset);

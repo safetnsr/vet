@@ -135,6 +135,141 @@ function findCycles(moduleGraph: Map<string, Set<string>>): string[][] {
   });
 }
 
+// ── Louvain community detection ──────────────────────────────────────────
+
+interface LouvainResult {
+  modularity: number;         // Q: -0.5 to 1.0 (higher = better modularity)
+  communities: Map<string, number>; // node → community id
+  communityCount: number;
+}
+
+function louvainCommunities(graph: Map<string, Set<string>>): LouvainResult {
+  const nodes = Array.from(graph.keys());
+  if (nodes.length < 2) {
+    return { modularity: 0, communities: new Map(), communityCount: 0 };
+  }
+
+  // Build undirected weighted adjacency (edge count = weight)
+  const adj = new Map<string, Map<string, number>>();
+  for (const n of nodes) { adj.set(n, new Map()); }
+
+  let totalEdges = 0;
+  for (const [from, deps] of graph) {
+    for (const to of deps) {
+      if (!adj.has(to)) { adj.set(to, new Map()); }
+      // Undirected: add both directions
+      const w = (adj.get(from)!.get(to) || 0) + 1;
+      adj.get(from)!.set(to, w);
+      adj.get(to)!.set(from, w);
+      totalEdges++;
+    }
+  }
+
+  if (totalEdges === 0) {
+    return { modularity: 0, communities: new Map(), communityCount: 0 };
+  }
+
+  const m = totalEdges; // total edge weight
+  const m2 = 2 * m;
+
+  // Degree of each node (sum of edge weights)
+  const degree = new Map<string, number>();
+  for (const [n, neighbors] of adj) {
+    let d = 0;
+    for (const w of neighbors.values()) d += w;
+    degree.set(n, d);
+  }
+
+  // Initialize: each node in its own community
+  const community = new Map<string, number>();
+  nodes.forEach((n, i) => community.set(n, i));
+
+  // Community totals: sum of degrees in each community
+  const commDegree = new Map<number, number>();
+  const commInternal = new Map<number, number>(); // sum of internal edges × 2
+  for (const [n, c] of community) {
+    commDegree.set(c, degree.get(n) || 0);
+    commInternal.set(c, 0);
+  }
+
+  // Iterative optimization (1 pass — good enough for code graphs)
+  let moved = true;
+  let iterations = 0;
+  while (moved && iterations < 10) {
+    moved = false;
+    iterations++;
+
+    for (const node of nodes) {
+      const nodeDeg = degree.get(node) || 0;
+      const currentComm = community.get(node)!;
+
+      // Calculate edges to each neighboring community
+      const commEdges = new Map<number, number>();
+      const neighbors = adj.get(node) || new Map();
+      for (const [neighbor, weight] of neighbors) {
+        const nc = community.get(neighbor);
+        if (nc !== undefined) {
+          commEdges.set(nc, (commEdges.get(nc) || 0) + weight);
+        }
+      }
+
+      // Modularity gain for moving node to community c:
+      // ΔQ = [Σin + 2*ki,in] / 2m - [(Σtot + ki) / 2m]² - [Σin/2m - (Σtot/2m)² - (ki/2m)²]
+      let bestComm = currentComm;
+      let bestGain = 0;
+
+      // Remove node from current community
+      const edgesToCurrent = commEdges.get(currentComm) || 0;
+
+      for (const [targetComm, edgesToTarget] of commEdges) {
+        if (targetComm === currentComm) continue;
+
+        const sigmaTot = commDegree.get(targetComm) || 0;
+        const sigmaIn = commInternal.get(targetComm) || 0;
+
+        // Simplified modularity gain
+        const gain = (edgesToTarget / m) - (sigmaTot * nodeDeg) / (m2 * m);
+
+        if (gain > bestGain) {
+          bestGain = gain;
+          bestComm = targetComm;
+        }
+      }
+
+      if (bestComm !== currentComm) {
+        // Move node
+        commDegree.set(currentComm, (commDegree.get(currentComm) || 0) - nodeDeg);
+        commInternal.set(currentComm, (commInternal.get(currentComm) || 0) - 2 * edgesToCurrent);
+
+        commDegree.set(bestComm, (commDegree.get(bestComm) || 0) + nodeDeg);
+        const edgesToBest = commEdges.get(bestComm) || 0;
+        commInternal.set(bestComm, (commInternal.get(bestComm) || 0) + 2 * edgesToBest);
+
+        community.set(node, bestComm);
+        moved = true;
+      }
+    }
+  }
+
+  // Calculate final modularity Q
+  let Q = 0;
+  for (const [n1, neighbors] of adj) {
+    for (const [n2, w] of neighbors) {
+      if (community.get(n1) === community.get(n2)) {
+        const d1 = degree.get(n1) || 0;
+        const d2 = degree.get(n2) || 0;
+        Q += w - (d1 * d2) / m2;
+      }
+    }
+  }
+  Q /= m2;
+
+  // Count unique communities
+  const uniqueComms = new Set(community.values());
+
+  return { modularity: Q, communities: community, communityCount: uniqueComms.size };
+}
+
 // ── Main check ───────────────────────────────────────────────────────────────
 
 export function checkArchitecture(cwd: string): CheckResult {
@@ -298,6 +433,29 @@ export function checkArchitecture(cwd: string): CheckResult {
     });
   }
 
+  // ── Louvain modularity ─────────────────────────────────────────────────
+  const louvain = louvainCommunities(moduleGraph);
+
+  if (moduleGraph.size >= 3) {
+    if (louvain.modularity < 0.3 && louvain.communityCount > 1) {
+      issues.push({
+        severity: 'warning',
+        message: `low modularity: Q=${louvain.modularity.toFixed(2)} (${louvain.communityCount} communities detected) — modules are too interconnected`,
+        file: '',
+        fixable: true,
+        fixHint: 'reduce cross-module dependencies, group related files into cohesive modules',
+      });
+    } else if (louvain.communityCount <= 1 && moduleGraph.size > 5) {
+      issues.push({
+        severity: 'info',
+        message: `monolithic structure: all ${moduleGraph.size} modules form a single community — no clear architectural boundaries`,
+        file: '',
+        fixable: true,
+        fixHint: 'introduce module boundaries with clear interfaces (barrel exports)',
+      });
+    }
+  }
+
   // ── Scoring ───────────────────────────────────────────────────────────────
   const moduleCount = moduleGraph.size;
   const sizeScale = moduleCount <= 5 ? 1.0 : Math.max(0.3, 1.0 - Math.log10(moduleCount / 5) * 0.3);
@@ -307,12 +465,17 @@ export function checkArchitecture(cwd: string): CheckResult {
   score -= Math.min(20, godFiles.length * 10) * sizeScale;
   score -= Math.min(15, Array.from(instability.values()).filter(i => i > 0.8).length * 5) * sizeScale;
   score -= Math.min(10, Math.floor(boundaryViolations / 3) * 3) * sizeScale;
+  // Modularity penalty: low Q on non-trivial graphs
+  if (moduleGraph.size >= 5 && louvain.modularity < 0.3) {
+    score -= Math.min(15, Math.round((0.3 - louvain.modularity) * 50));
+  }
   score = Math.max(25, Math.round(score));
 
   // ── Summary ───────────────────────────────────────────────────────────────
   const parts: string[] = [];
   parts.push(`${moduleGraph.size} modules`);
-  parts.push(`${edges.length} import edges`);
+  parts.push(`${edges.length} edges`);
+  if (louvain.communityCount > 0) parts.push(`Q=${louvain.modularity.toFixed(2)} (${louvain.communityCount} communities)`);
   if (cycles.length > 0) parts.push(c.red + `${cycles.length} circular dep${cycles.length !== 1 ? 's' : ''}` + c.reset);
   if (godFiles.length > 0) parts.push(c.yellow + `${godFiles.length} god file${godFiles.length !== 1 ? 's' : ''}` + c.reset);
 
