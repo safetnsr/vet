@@ -17,6 +17,7 @@ import { checkArchitecture } from './checks/architecture.js';
 import { checkAIReady } from './checks/aiready.js';
 import { checkDeep } from './checks/deep.js';
 import { checkSemantic } from './checks/semantic.js';
+import { checkHotspots } from './checks/hotspots.js';
 import { checkReceipt, runReceiptCommand } from './checks/receipt.js';
 import { checkMemory } from './checks/memory.js';
 import { checkVerify } from './checks/verify.js';
@@ -355,6 +356,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     aireadyResult,
     deepResult,
     semanticResult,
+    hotspotsResult,
   ] = await Promise.all([
     withTimeout('scan', () => checkScan(cwd)),
     withTimeout('secrets', () => checkSecrets(cwd)),
@@ -381,6 +383,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     withTimeout('aiready', () => checkAIReady(cwd)),
     withTimeout('deep', () => checkDeep(cwd), 60_000),
     withTimeout('semantic', () => checkSemantic(cwd), 60_000),
+    withTimeout('hotspots', () => checkHotspots(cwd), 30_000),
   ]);
 
   // Git-dependent checks (diff + history) — parallel with each other
@@ -399,6 +402,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     deps: [depsResult],
     architecture: [architectureResult],
     aiready: [aireadyResult, deepResult, semanticResult],
+    history: [hotspotsResult],
   });
   } catch (e) {
     console.error('check failed:', e instanceof Error ? e.message : e);

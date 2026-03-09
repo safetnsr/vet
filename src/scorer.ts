@@ -8,6 +8,7 @@ export interface CheckMap {
   deps: CheckResult[];
   architecture: CheckResult[];
   aiready: CheckResult[];
+  history: CheckResult[];
 }
 
 export function score(project: string, checkMap: CheckMap): VetResult {

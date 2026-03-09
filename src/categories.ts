@@ -17,12 +17,13 @@ export function toGrade(score: number): string {
 // ── Category weights ─────────────────────────────────────────────────────────
 
 const WEIGHTS: Record<string, number> = {
-  security: 0.25,
-  integrity: 0.25,
-  debt: 0.20,
+  security: 0.20,
+  integrity: 0.20,
+  debt: 0.15,
   deps: 0.10,
   architecture: 0.10,
   aiready: 0.10,
+  history: 0.15,
 };
 
 // ── Scoring floor for non-security checks ────────────────────────────────────
@@ -76,10 +77,11 @@ export function buildCategories(checkMap: {
   deps: CheckResult[];
   architecture: CheckResult[];
   aiready: CheckResult[];
+  history: CheckResult[];
 }): CategoryResult[] {
   const categories: CategoryResult[] = [];
 
-  for (const name of ['security', 'integrity', 'debt', 'deps', 'architecture', 'aiready'] as const) {
+  for (const name of ['security', 'integrity', 'debt', 'deps', 'architecture', 'aiready', 'history'] as const) {
     const checks = checkMap[name];
     if (!checks || checks.length === 0) continue;
     const score = averageScore(checks);
