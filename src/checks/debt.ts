@@ -443,13 +443,19 @@ function findOrphanedExports(cwd: string, files: string[]): Issue[] {
 
   const allSourceFiles = files.filter(f => isSourceFile(f));
 
+  // Track which files are re-exported via `export * from './x'`
+  const reExportedFiles = new Set<string>();
+  const exportFromRe = /export\s+(?:type\s+)?\*\s+from\s+['"]([^'"]+)['"]/g;
+  const exportNamedFromRe = /export\s+(?:type\s+)?\{([^}]+)\}\s+from\s+['"]([^'"]+)['"]/g;
+
   for (const file of allSourceFiles) {
     const content = readFile(join(cwd, file));
     if (!content) continue;
     let match: RegExpExecArray | null;
+
+    // Standard imports
     importRe.lastIndex = 0;
     while ((match = importRe.exec(content)) !== null) {
-      // Named imports: { a, b as c }
       const namedParts = [match[1], match[3]].filter(Boolean);
       for (const part of namedParts) {
         for (const name of part.split(',')) {
@@ -457,8 +463,37 @@ function findOrphanedExports(cwd: string, files: string[]): Issue[] {
           if (trimmed) importedNames.add(trimmed);
         }
       }
-      // Default import
       if (match[2]) importedNames.add(match[2]);
+    }
+
+    // `export * from './module'` — all exports from that module are consumed
+    exportFromRe.lastIndex = 0;
+    while ((match = exportFromRe.exec(content)) !== null) {
+      // Resolve the re-exported file relative to current file
+      const specifier = match[1];
+      if (specifier.startsWith('.')) {
+        const dir = dirname(file);
+        const candidates = [
+          join(dir, specifier),
+          join(dir, specifier + '.ts'), join(dir, specifier + '.tsx'),
+          join(dir, specifier + '.js'), join(dir, specifier + '.jsx'),
+          join(dir, specifier, 'index.ts'), join(dir, specifier, 'index.tsx'),
+          join(dir, specifier, 'index.js'),
+        ];
+        for (const c of candidates) {
+          const normalized = c.replace(/\\/g, '/');
+          reExportedFiles.add(normalized);
+        }
+      }
+    }
+
+    // `export { name } from './module'` — named re-exports count as imports
+    exportNamedFromRe.lastIndex = 0;
+    while ((match = exportNamedFromRe.exec(content)) !== null) {
+      for (const name of match[1].split(',')) {
+        const trimmed = name.trim().split(/\s+as\s+/)[0].trim();
+        if (trimmed) importedNames.add(trimmed);
+      }
     }
   }
 
@@ -483,13 +518,15 @@ function findOrphanedExports(cwd: string, files: string[]): Issue[] {
 
   for (const exp of exports) {
     if (!importedNames.has(exp.name)) {
+      // Skip if the file is re-exported via `export * from './file'`
+      const normalizedFile = exp.file.replace(/\\/g, '/');
+      if (reExportedFiles.has(normalizedFile)) continue;
       // Cross-reference check: if the export name appears in a different file, it's likely used
-      // (catches hook returns, JSX usage, dynamic imports, re-exports)
       const refs = nameToFiles.get(exp.name);
       if (refs) {
         const otherFiles = new Set(refs);
         otherFiles.delete(exp.file);
-        if (otherFiles.size > 0) continue; // referenced in another file → not orphaned
+        if (otherFiles.size > 0) continue;
       }
       // Skip framework convention exports (Next.js, Remix, SvelteKit, Nuxt)
       if (FRAMEWORK_CONVENTION_EXPORTS.has(exp.name) && isFrameworkConventionFile(exp.file)) continue;
