@@ -24,12 +24,43 @@ function isSourceFile(f: string): boolean {
 }
 
 function isTestFile(f: string): boolean {
-  return /\.(test|spec)\.[jt]sx?$/.test(f) || f.includes('__tests__') || f.startsWith('test/') || f.startsWith('test\\');
+  return /\.(test|spec)\.[jt]sx?$/.test(f) || f.includes('__tests__') || /(?:^|[/\\])tests?[/\\]/.test(f);
 }
 
 function isEntryFile(f: string): boolean {
   const b = basename(f);
   return /^(cli|main|index)\.[jt]sx?$/.test(b);
+}
+
+// Next.js / Remix / SvelteKit / Nuxt convention exports consumed by the framework, not via imports
+const FRAMEWORK_CONVENTION_EXPORTS = new Set([
+  // Next.js App Router
+  'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS',
+  'metadata', 'generateMetadata', 'generateStaticParams', 'generateViewport',
+  'viewport', 'runtime', 'revalidate', 'dynamic', 'dynamicParams',
+  'fetchCache', 'preferredRegion', 'maxDuration',
+  'default', // default export in page/layout/route files
+  // Next.js Pages Router
+  'getServerSideProps', 'getStaticProps', 'getStaticPaths',
+  // Remix
+  'loader', 'action', 'meta', 'links', 'headers', 'handle',
+  'shouldRevalidate', 'ErrorBoundary', 'HydrateFallback',
+  // SvelteKit
+  'load', 'prerender', 'ssr', 'csr', 'trailingSlash',
+  // Nuxt
+  'definePageMeta', 'useHead',
+]);
+
+function isFrameworkConventionFile(file: string): boolean {
+  // Next.js app router: app/**/page.tsx, layout.tsx, route.tsx, loading.tsx, error.tsx, etc.
+  if (/\/(app|pages)\//.test(file) && /\/(page|layout|route|loading|error|not-found|template|default|middleware)\.[jt]sx?$/.test(file)) return true;
+  // Next.js API routes
+  if (/\/api\//.test(file) && /\/route\.[jt]sx?$/.test(file)) return true;
+  // Remix routes
+  if (/\/routes\//.test(file) && /\.[jt]sx?$/.test(file)) return true;
+  // SvelteKit
+  if (/\+(page|layout|server|error)\.[jt]s/.test(file)) return true;
+  return false;
 }
 
 function isBarrelFile(f: string): boolean {
@@ -254,14 +285,14 @@ function findDuplicates(allFuncs: FuncInfo[]): Issue[] {
     // Downgrade to info if all functions in the group are in test directories
     // or if any function is in an examples/demo directory
     const allInTest = group.every(f => isInTestDir(f.file));
-    const anyInExample = group.some(f => /(?:^|[/\\])(?:examples?|demos?)[/\\]/.test(f.file));
+    const anyInExample = group.some(f => /(?:^|[/\\])(?:examples?|demos?|templates?|fixtures?)[/\\]/.test(f.file));
     issues.push({
       severity: (allInTest || anyInExample) ? 'info' : 'warning',
       message: `near-duplicate functions: ${locations}`,
       file: group[0].file,
       line: group[0].line,
-      fixable: true,
-      fixHint: 'extract shared logic into a single function',
+      fixable: !(allInTest || anyInExample),
+      fixHint: (allInTest || anyInExample) ? 'duplication in examples/tests is often intentional' : 'extract shared logic into a single function',
     });
   }
 
@@ -294,14 +325,14 @@ function findDuplicates(allFuncs: FuncInfo[]): Issue[] {
         // Downgrade to info if both functions are in test directories
         // or if either is in an examples/demo directory
         const bothInTest = isInTestDir(a.file) && isInTestDir(b.file);
-        const anyInExample = /(?:^|[/\\])(?:examples?|demos?)[/\\]/.test(a.file) || /(?:^|[/\\])(?:examples?|demos?)[/\\]/.test(b.file);
+        const anyInExample = /(?:^|[/\\])(?:examples?|demos?|templates?|fixtures?)[/\\]/.test(a.file) || /(?:^|[/\\])(?:examples?|demos?|templates?|fixtures?)[/\\]/.test(b.file);
         issues.push({
           severity: (bothInTest || anyInExample) ? 'info' : 'warning',
           message: `similar functions (${Math.round(sim * 100)}%): ${a.name} (${a.file}:${a.line}) and ${b.name} (${b.file}:${b.line})`,
           file: a.file,
           line: a.line,
-          fixable: true,
-          fixHint: 'consider merging or extracting shared logic',
+          fixable: !(bothInTest || anyInExample),
+          fixHint: (bothInTest || anyInExample) ? 'duplication in examples/tests is often intentional' : 'consider merging or extracting shared logic',
         });
       }
     }
@@ -390,20 +421,29 @@ function findOrphanedExports(cwd: string, files: string[]): Issue[] {
       if (/^export\s+type\s/.test(line)) continue;
       const braceMatch = line.match(/^export\s*\{([^}]+)\}/);
       if (braceMatch) {
-        const names = braceMatch[1].split(',').map(n => n.trim().split(/\s+as\s+/)[0].trim()).filter(Boolean);
-        for (const name of names) {
-          if (name === 'default' || name === 'type') continue;
-          exports.push({ name, file, line: i + 1 });
+        for (const part of braceMatch[1].split(',')) {
+          const trimmed = part.trim();
+          if (!trimmed) continue;
+          // export { x as y } — use the alias (y) as the exported name, since that's what consumers see
+          const asParts = trimmed.split(/\s+as\s+/);
+          const exportedName = (asParts.length > 1 ? asParts[1] : asParts[0]).trim();
+          if (exportedName === 'default' || exportedName === 'type') continue;
+          exports.push({ name: exportedName, file, line: i + 1 });
         }
       }
     }
   }
 
-  // Scan all files for import names — collect all imported identifiers into a Set
+  // Scan ALL files (including tests) for import names — an export consumed by a test is not orphaned
   const importedNames = new Set<string>();
   const importRe = /import\s+(?:type\s+)?(?:\{([^}]+)\}|([a-zA-Z_$][a-zA-Z0-9_$]*)(?:\s*,\s*\{([^}]+)\})?)\s+from\s+/g;
 
-  for (const file of sourceFiles) {
+  // Also scan for dynamic imports: require('x'), import('x') — to catch non-static usage
+  const dynamicImportRe = /(?:require|import)\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+
+  const allSourceFiles = files.filter(f => isSourceFile(f));
+
+  for (const file of allSourceFiles) {
     const content = readFile(join(cwd, file));
     if (!content) continue;
     let match: RegExpExecArray | null;
@@ -422,11 +462,37 @@ function findOrphanedExports(cwd: string, files: string[]): Issue[] {
     }
   }
 
+  // Build a cross-reference map: for each exported name, check if it appears in other files
+  // This catches hook returns ({ Component } = useHook()), dynamic usage, re-exports, JSX, etc.
+  // Only build refs for names we actually export (not all identifiers — too expensive)
+  const exportNames = new Set(exports.map(e => e.name));
+  const nameToFiles = new Map<string, Set<string>>();
+  for (const name of exportNames) nameToFiles.set(name, new Set());
+  for (const file of allSourceFiles) {
+    const content = readFile(join(cwd, file));
+    if (!content) continue;
+    for (const name of exportNames) {
+      if (content.includes(name)) {
+        nameToFiles.get(name)!.add(file);
+      }
+    }
+  }
+
   const lib = isLibrary(cwd);
   const mono = isMonorepo(cwd);
 
   for (const exp of exports) {
     if (!importedNames.has(exp.name)) {
+      // Cross-reference check: if the export name appears in a different file, it's likely used
+      // (catches hook returns, JSX usage, dynamic imports, re-exports)
+      const refs = nameToFiles.get(exp.name);
+      if (refs) {
+        const otherFiles = new Set(refs);
+        otherFiles.delete(exp.file);
+        if (otherFiles.size > 0) continue; // referenced in another file → not orphaned
+      }
+      // Skip framework convention exports (Next.js, Remix, SvelteKit, Nuxt)
+      if (FRAMEWORK_CONVENTION_EXPORTS.has(exp.name) && isFrameworkConventionFile(exp.file)) continue;
       // In monorepos, check if the export's file is inside a workspace package that is a library
       const isLib = lib || (mono && isFileInLibraryPackage(cwd, exp.file));
       issues.push({
@@ -434,7 +500,7 @@ function findOrphanedExports(cwd: string, files: string[]): Issue[] {
         message: `orphaned export: "${exp.name}" is exported but never imported${isLib ? ' (library detected — exports may be consumed externally)' : ''}`,
         file: exp.file,
         line: exp.line,
-        fixable: true,
+        fixable: !isLib,
         fixHint: isLib ? 'may be public API — verify if still needed' : 'remove the export keyword or delete the function',
       });
     }

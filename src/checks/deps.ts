@@ -310,10 +310,27 @@ const TOOLING_PACKAGES = new Set([
   'husky', 'lint-staged', 'tsx', 'ts-node', 'concurrently', 'npm-run-all',
   'shx', 'rimraf', 'cross-env', 'nodemon', 'jest', 'vitest', 'mocha',
   'c8', 'nyc', 'turbo', 'lerna', 'changesets', '@changesets/cli',
+  '@changesets/changelog-github', '@changesets/changelog-git',
   'webpack', 'webpack-cli', 'vite', 'rollup', 'esbuild', 'swc',
   'tailwindcss', 'postcss', 'autoprefixer', 'sass', 'less',
   'commitizen', 'cz-conventional-changelog', 'semantic-release',
   '@typescript/native-preview',
+  // Linting configs (used via eslint extends, not imported)
+  'eslint-config-next', 'eslint-config-prettier', 'eslint-config-turbo',
+  '@next/eslint-plugin-next', 'eslint-plugin-react', 'eslint-plugin-react-hooks',
+  'eslint-plugin-import', 'eslint-plugin-jsx-a11y', 'eslint-plugin-tailwindcss',
+  // Commit/release tooling
+  '@commitlint/cli', '@commitlint/config-conventional',
+  'standard-version', 'release-it', 'np',
+  // Test utilities (used as test runner plugins/reporters)
+  'chai', 'sinon', 'supertest', 'nock', '@testing-library/react',
+  '@testing-library/jest-dom', '@testing-library/user-event',
+  'ts-jest', '@swc/jest', 'babel-jest',
+  // Build plugins (used via config files, not imported)
+  '@vitejs/plugin-react', '@sveltejs/adapter-auto', '@sveltejs/kit',
+  'del-cli', 'make-node',
+  // Type packages (consumed by TS compiler, not imported)
+  '@types/react', '@types/react-dom', '@types/jest', '@types/mocha',
 ]);
 
 // ── Collect all deps declared in workspace sub-packages ──────────────────────
