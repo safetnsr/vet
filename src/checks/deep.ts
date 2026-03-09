@@ -73,12 +73,18 @@ function analyzeCatch(node: ts.CatchClause): CatchInfo {
   const block = node.block;
   const stmts = block.statements;
   const line = node.getSourceFile().getLineAndCharacterOfPosition(node.getStart()).line + 1;
+  const text = block.getText();
 
   if (stmts.length === 0) {
+    // Check if there's a deliberate comment (/* skip */, /* ignore */, etc.)
+    const hasComment = /\/[/*]\s*(skip|ignore|noop|intentional|expected|ok|no-op)/i.test(text);
+    if (hasComment) {
+      // Deliberate empty catch — not a bug
+      return { line, isEmpty: false, isLazy: false, isRethrow: false };
+    }
     return { line, isEmpty: true, isLazy: false, isRethrow: false };
   }
 
-  const text = block.getText();
   const isLazy = stmts.length === 1 && /console\.(log|error|warn)\s*\(/.test(text) && !text.includes('throw');
   const isRethrow = text.includes('throw');
 

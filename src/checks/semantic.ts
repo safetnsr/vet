@@ -163,7 +163,7 @@ export async function checkSemantic(cwd: string): Promise<CheckResult> {
     }
 
     // Embed and compare each function
-    const THRESHOLD = 0.40; // similarity threshold — code-to-code embeddings
+    const THRESHOLD = 0.45; // similarity threshold — code-to-code embeddings (0.40 gave false positives)
 
     for (const func of funcsToAnalyze) {
       const result = await extractor(func.body, { pooling: 'mean', normalize: true });

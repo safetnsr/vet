@@ -331,6 +331,16 @@ const TOOLING_PACKAGES = new Set([
   'del-cli', 'make-node',
   // Type packages (consumed by TS compiler, not imported)
   '@types/react', '@types/react-dom', '@types/jest', '@types/mocha',
+  // Test runners / e2e (used via CLI, not imported)
+  'playwright', '@playwright/test', 'cypress', 'puppeteer',
+  // Package quality tools (used via CLI)
+  'publint', 'arethetypeswrong', 'are-the-types-wrong', 'attw',
+  'pkg-pr-new', 'size-limit', '@size-limit/preset-small-lib',
+  // Monorepo/workspace tools
+  'update-ts-references', 'syncpack', 'manypkg',
+  // Prettier plugins (loaded via config, not imported)
+  'prettier-plugin-svelte', 'prettier-plugin-tailwindcss',
+  'prettier-plugin-organize-imports', 'prettier-plugin-packagejson',
 ]);
 
 // ── Collect all deps declared in workspace sub-packages ──────────────────────
@@ -515,6 +525,12 @@ export async function checkDeps(cwd: string): Promise<CheckResult> {
     if (!importedPackages.has(pkg)) {
       // Skip known tooling packages that are devDependencies (used via CLI scripts, not imports)
       if (TOOLING_PACKAGES.has(pkg) && devDepNames.has(pkg)) continue;
+      // Wildcard tooling patterns (eslint configs, prettier plugins, @types/*)
+      if (devDepNames.has(pkg) && (
+        pkg.startsWith('eslint-config-') || pkg.startsWith('eslint-plugin-') ||
+        pkg.startsWith('prettier-plugin-') || pkg.startsWith('@types/') ||
+        pkg.startsWith('@typescript-eslint/') || pkg.startsWith('@eslint/')
+      )) continue;
       // Check if it's a CLI tool / plugin / type package (common false positives)
       // Still flag it, but as info
       issues.push({
