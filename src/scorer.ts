@@ -6,6 +6,8 @@ export interface CheckMap {
   integrity: CheckResult[];
   debt: CheckResult[];
   deps: CheckResult[];
+  architecture: CheckResult[];
+  aiready: CheckResult[];
 }
 
 export function score(project: string, checkMap: CheckMap): VetResult {

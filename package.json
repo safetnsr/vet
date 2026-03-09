@@ -1,6 +1,6 @@
 {
   "name": "@safetnsr/vet",
-  "version": "1.17.1",
+  "version": "1.18.0",
   "description": "vet your AI-generated code — one command, one score card, one letter grade",
   "type": "module",
   "bin": {

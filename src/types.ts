@@ -16,7 +16,7 @@ export interface Issue {
 }
 
 export interface CategoryResult {
-  name: 'security' | 'integrity' | 'debt' | 'deps';
+  name: 'security' | 'integrity' | 'debt' | 'deps' | 'architecture' | 'aiready';
   score: number;        // 0-100
   weight: number;       // 0.15-0.30
   checks: CheckResult[];

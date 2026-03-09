@@ -13,6 +13,8 @@ import { checkOwasp } from './checks/owasp.js';
 import { checkDeps } from './checks/deps.js';
 import { checkDebt } from './checks/debt.js';
 import { checkIntegrity } from './checks/integrity.js';
+import { checkArchitecture } from './checks/architecture.js';
+import { checkAIReady } from './checks/aiready.js';
 import { checkReceipt, runReceiptCommand } from './checks/receipt.js';
 import { checkMemory } from './checks/memory.js';
 import { checkVerify } from './checks/verify.js';
@@ -24,6 +26,7 @@ import { checkSubsidy, runSubsidyCommand } from './checks/subsidy.js';
 import { checkLoop, runLoopCommand } from './checks/loop.js';
 import { checkBloat, runBloatCommand } from './checks/bloat.js';
 import { checkGuard, runGuardCommand } from './checks/guard.js';
+import { checkExplain, runExplainCommand } from './checks/explain.js';
 import { checkCompleteness } from './checks/completeness.js';
 import { score } from './scorer.js';
 import { toGrade } from './categories.js';
@@ -78,6 +81,7 @@ if (flags.has('--help') || flags.has('-h')) {
     npx @safetnsr/vet loop [log]         /loop session forensics — per-iteration timeline
     npx @safetnsr/vet bloat              detect agent-generated code bloat
     npx @safetnsr/vet guard [dir]        scan for destructive operation bomb sites
+    npx @safetnsr/vet explain [--since REF] [--verbose] [--json]  risk-tier agent changes
 
   ${c.dim}categories:${c.reset}
     security   (30%)  scan, secrets, config, model usage
@@ -114,7 +118,7 @@ if (flags.has('--version') || flags.has('-v')) {
   process.exit(0);
 }
 
-const COMMANDS = ['init', 'receipt', 'map', 'permissions', 'compact', 'subsidy', 'loop', 'bloat', 'guard'];
+const COMMANDS = ['init', 'receipt', 'map', 'permissions', 'compact', 'subsidy', 'loop', 'bloat', 'guard', 'explain'];
 const command = COMMANDS.includes(positional[0]) ? positional[0] : undefined;
 const cwd = resolve(positional.find(p => !COMMANDS.includes(p)) || '.');
 const isCI = flags.has('--ci');
@@ -253,6 +257,19 @@ if (command === 'guard') {
   process.exit(0);
 }
 
+if (command === 'explain') {
+  try {
+    const format = isJSON ? 'json' : 'ascii';
+    const useAI = flags.has('--ai');
+    const verbose = flags.has('--verbose');
+    await runExplainCommand(format, cwd, since, useAI, verbose);
+  } catch (e) {
+    console.error(`${c.red}explain failed:${c.reset}`, e instanceof Error ? e.message : e);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 if (!isGitRepo(cwd)) {
   console.error(`${c.red}not a git repository${c.reset}. vet operates on git repos.`);
   process.exit(1);
@@ -330,6 +347,9 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     completenessResult,
     bloatResult,
     guardResult,
+    explainResult,
+    architectureResult,
+    aireadyResult,
   ] = await Promise.all([
     withTimeout('scan', () => checkScan(cwd)),
     withTimeout('secrets', () => checkSecrets(cwd)),
@@ -351,6 +371,9 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     withTimeout('completeness', () => checkCompleteness(cwd, ignore)),
     withTimeout('bloat', () => checkBloat(cwd)),
     withTimeout('guard', () => checkGuard(cwd)),
+    withTimeout('explain', () => checkExplain(cwd, since)),
+    withTimeout('architecture', () => checkArchitecture(cwd)),
+    withTimeout('aiready', () => checkAIReady(cwd)),
   ]);
 
   // Git-dependent checks (diff + history) — parallel with each other
@@ -364,9 +387,11 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
 
   return score(cwd, {
     security: [scanResult, secretsResult, configResult, modelsResult, owaspResult, permissionsResult, subsidyResult, guardResult],
-    integrity: [diffResult, integrityResult, receiptResult, compactResult, memoryResult, verifyResult, testsResult, loopResult, completenessResult],
+    integrity: [diffResult, integrityResult, receiptResult, compactResult, memoryResult, verifyResult, testsResult, loopResult, completenessResult, explainResult],
     debt: [readyResult, historyResult, debtResult, bloatResult],
     deps: [depsResult],
+    architecture: [architectureResult],
+    aiready: [aireadyResult],
   });
   } catch (e) {
     console.error('check failed:', e instanceof Error ? e.message : e);
