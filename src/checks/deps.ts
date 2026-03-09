@@ -536,7 +536,7 @@ export async function checkDeps(cwd: string): Promise<CheckResult> {
   // ── Scoring ────────────────────────────────────────────────────────────────
   const errors = issues.filter(i => i.severity === 'error').length;
   const warnings = issues.filter(i => i.severity === 'warning').length;
-  const rawScore = 100 - (errors * 30) - (warnings * 10);
+  const rawScore = 100 - (errors * 20) - (warnings * 5);
   const finalScore = Math.max(0, Math.min(100, rawScore));
 
   // ── Summary ────────────────────────────────────────────────────────────────

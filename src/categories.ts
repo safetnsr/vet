@@ -17,10 +17,10 @@ export function toGrade(score: number): string {
 // ── Category weights ─────────────────────────────────────────────────────────
 
 const WEIGHTS = {
-  security: 0.30,
-  integrity: 0.30,
-  debt: 0.25,
-  deps: 0.15,
+  security: 0.25,
+  integrity: 0.35,
+  debt: 0.30,
+  deps: 0.10,
 } as const;
 
 // ── Scoring floor for non-security checks ────────────────────────────────────
@@ -40,6 +40,26 @@ function averageScore(checks: CheckResult[]): number {
   if (checks.length === 0) return 100;
   const total = checks.reduce((sum, c) => sum + applyScoreFloor(c), 0);
   return Math.round(total / checks.length);
+}
+
+// ── Completeness multiplier ─────────────────────────────────────────────────
+
+/**
+ * Extract completeness score and apply it as a multiplier to the overall score.
+ * A repo with completeness=0 (no JS/TS source) gets heavily penalized.
+ * completeness 0-30 → multiplier 0.3-0.6
+ * completeness 30-70 → multiplier 0.6-0.85
+ * completeness 70-100 → multiplier 0.85-1.0
+ */
+function completenessMultiplier(categories: CategoryResult[]): number {
+  const integrity = categories.find(c => c.name === 'integrity');
+  if (!integrity) return 1.0;
+  const comp = integrity.checks.find(c => c.name === 'completeness');
+  if (!comp) return 1.0;
+  const s = comp.score;
+  if (s >= 70) return 0.85 + (s - 70) * (0.15 / 30);
+  if (s >= 30) return 0.6 + (s - 30) * (0.25 / 40);
+  return 0.3 + s * (0.3 / 30);
 }
 
 // ── Group checks into categories ─────────────────────────────────────────────
@@ -78,7 +98,9 @@ export function buildVetResult(project: string, categories: CategoryResult[]): V
     weightedSum += cat.score * cat.weight;
     totalWeight += cat.weight;
   }
-  const overallScore = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 0;
+  const rawScore = totalWeight > 0 ? weightedSum / totalWeight : 0;
+  const compMult = completenessMultiplier(categories);
+  const overallScore = Math.round(rawScore * compMult);
   const grade = toGrade(overallScore);
 
   const allIssues = categories.flatMap(c => c.issues);
