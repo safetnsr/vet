@@ -23,6 +23,7 @@ import { checkCompact, runCompactCommand } from './checks/compact.js';
 import { checkSubsidy, runSubsidyCommand } from './checks/subsidy.js';
 import { checkLoop, runLoopCommand } from './checks/loop.js';
 import { checkBloat, runBloatCommand } from './checks/bloat.js';
+import { checkGuard, runGuardCommand } from './checks/guard.js';
 import { checkCompleteness } from './checks/completeness.js';
 import { score } from './scorer.js';
 import { toGrade } from './categories.js';
@@ -76,6 +77,7 @@ if (flags.has('--help') || flags.has('-h')) {
     npx @safetnsr/vet subsidy [--plan tier] [--since date]  show AI cost vs subscription
     npx @safetnsr/vet loop [log]         /loop session forensics — per-iteration timeline
     npx @safetnsr/vet bloat              detect agent-generated code bloat
+    npx @safetnsr/vet guard [dir]        scan for destructive operation bomb sites
 
   ${c.dim}categories:${c.reset}
     security   (30%)  scan, secrets, config, model usage
@@ -112,7 +114,7 @@ if (flags.has('--version') || flags.has('-v')) {
   process.exit(0);
 }
 
-const COMMANDS = ['init', 'receipt', 'map', 'permissions', 'compact', 'subsidy', 'loop', 'bloat'];
+const COMMANDS = ['init', 'receipt', 'map', 'permissions', 'compact', 'subsidy', 'loop', 'bloat', 'guard'];
 const command = COMMANDS.includes(positional[0]) ? positional[0] : undefined;
 const cwd = resolve(positional.find(p => !COMMANDS.includes(p)) || '.');
 const isCI = flags.has('--ci');
@@ -240,6 +242,17 @@ if (command === 'bloat') {
   process.exit(0);
 }
 
+if (command === 'guard') {
+  try {
+    const format = isJSON ? 'json' : 'ascii';
+    await runGuardCommand(format, cwd);
+  } catch (e) {
+    console.error(`${c.red}guard failed:${c.reset}`, e instanceof Error ? e.message : e);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 if (!isGitRepo(cwd)) {
   console.error(`${c.red}not a git repository${c.reset}. vet operates on git repos.`);
   process.exit(1);
@@ -316,6 +329,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     loopResult,
     completenessResult,
     bloatResult,
+    guardResult,
   ] = await Promise.all([
     withTimeout('scan', () => checkScan(cwd)),
     withTimeout('secrets', () => checkSecrets(cwd)),
@@ -336,6 +350,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     withTimeout('loop', () => checkLoop(cwd)),
     withTimeout('completeness', () => checkCompleteness(cwd, ignore)),
     withTimeout('bloat', () => checkBloat(cwd)),
+    withTimeout('guard', () => checkGuard(cwd)),
   ]);
 
   // Git-dependent checks (diff + history) — parallel with each other
@@ -348,7 +363,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
   clearCache();
 
   return score(cwd, {
-    security: [scanResult, secretsResult, configResult, modelsResult, owaspResult, permissionsResult, subsidyResult],
+    security: [scanResult, secretsResult, configResult, modelsResult, owaspResult, permissionsResult, subsidyResult, guardResult],
     integrity: [diffResult, integrityResult, receiptResult, compactResult, memoryResult, verifyResult, testsResult, loopResult, completenessResult],
     debt: [readyResult, historyResult, debtResult, bloatResult],
     deps: [depsResult],
