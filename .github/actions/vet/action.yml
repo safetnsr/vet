@@ -41,65 +41,74 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: |
         npx @safetnsr/vet@${{ inputs.version }} --json > /tmp/vet-result.json 2>&1 || true
-        
+
         SCORE=$(jq -r '.score // 0' /tmp/vet-result.json)
         GRADE=$(jq -r '.grade // "F"' /tmp/vet-result.json)
-        
-        echo "score=$SCORE" >> $GITHUB_OUTPUT
-        echo "grade=$GRADE" >> $GITHUB_OUTPUT
-        
+        FIXABLE=$(jq -r '.fixableIssues // 0' /tmp/vet-result.json)
+
+        echo "score=$SCORE" >> "$GITHUB_OUTPUT"
+        echo "grade=$GRADE" >> "$GITHUB_OUTPUT"
+
         # Check threshold
         declare -A GRADE_ORDER=([A]=5 [B]=4 [C]=3 [D]=2 [F]=1)
         THRESHOLD="${{ inputs.threshold }}"
         if [[ ${GRADE_ORDER[$GRADE]:-0} -ge ${GRADE_ORDER[$THRESHOLD]:-3} ]]; then
-          echo "passed=true" >> $GITHUB_OUTPUT
+          echo "passed=true" >> "$GITHUB_OUTPUT"
         else
-          echo "passed=false" >> $GITHUB_OUTPUT
+          echo "passed=false" >> "$GITHUB_OUTPUT"
         fi
-        
-        # Build markdown comment
-        ISSUES=$(jq -r '.issues // 0' /tmp/vet-result.json)
+
+        # Build category table rows
+        # Structure: .categories[].checks[].issues[]
         CATEGORIES=$(jq -r '
           .categories // [] | map(
-            "| \(.name) | \(.score) | \(.grade) | \(.issues | length) issues |"
+            (.checks // [] | map(.issues // [] | length) | add // 0) as $issues |
+            "| \(.name) | \(.score) | \(.weight) | \($issues) |"
           ) | join("\n")
         ' /tmp/vet-result.json)
-        
+
+        # Top 5 issues across all categories
         TOP_ISSUES=$(jq -r '
-          [.categories // [] | .[].issues[] | select(.severity == "error" or .severity == "warning")] |
+          [.categories // [] | .[].checks[]? | .issues[]? |
+           select(.severity == "error" or .severity == "warning")] |
           sort_by(if .severity == "error" then 0 else 1 end) |
           .[0:5] |
-          map("- **\(.severity):** \(.message) (`\(.file // "—")`)") |
+          map("- **\(.severity):** \(.message) (`\(.file // "—"):\(.line // "")`)")  |
           join("\n")
         ' /tmp/vet-result.json)
-        
+
+        # Total issue count
+        TOTAL_ISSUES=$(jq -r '
+          [.categories // [] | .[].checks[]? | .issues[]? ] | length
+        ' /tmp/vet-result.json)
+
+        # Write comment to file to avoid escaping issues with GITHUB_OUTPUT heredoc
         {
-          echo 'comment<<VETEOF'
           echo "## 🩺 vet score card"
           echo ""
-          echo "**Score:** $SCORE/100 · **Grade:** $GRADE · **Threshold:** $THRESHOLD"
+          echo "**Score:** ${SCORE}/100 · **Grade:** ${GRADE} · **Threshold:** ${THRESHOLD}"
+          echo "**Issues:** ${TOTAL_ISSUES} · **Fixable:** ${FIXABLE}"
           echo ""
           if [[ ${GRADE_ORDER[$GRADE]:-0} -ge ${GRADE_ORDER[$THRESHOLD]:-3} ]]; then
             echo "✅ **Passed**"
           else
-            echo "❌ **Failed** — grade $GRADE is below threshold $THRESHOLD"
+            echo "❌ **Failed** — grade ${GRADE} is below threshold ${THRESHOLD}"
           fi
           echo ""
-          echo "| Category | Score | Grade | Details |"
-          echo "|----------|-------|-------|---------|"
-          echo "$CATEGORIES"
+          echo "| Category | Score | Weight | Issues |"
+          echo "|----------|-------|--------|--------|"
+          echo "${CATEGORIES}"
           echo ""
-          if [[ -n "$TOP_ISSUES" && "$TOP_ISSUES" != "null" ]]; then
+          if [[ -n "${TOP_ISSUES}" && "${TOP_ISSUES}" != "null" && "${TOP_ISSUES}" != "" ]]; then
             echo "<details><summary>Top issues</summary>"
             echo ""
-            echo "$TOP_ISSUES"
+            echo "${TOP_ISSUES}"
             echo ""
             echo "</details>"
           fi
           echo ""
           echo "<sub>Posted by <a href=\"https://www.npmjs.com/package/@safetnsr/vet\">@safetnsr/vet</a></sub>"
-          echo 'VETEOF'
-        } >> $GITHUB_OUTPUT
+        } > /tmp/vet-comment.md
 
     - name: Comment on PR
       if: inputs.comment == 'true' && github.event_name == 'pull_request'
@@ -107,18 +116,17 @@ runs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        COMMENT="${{ steps.vet.outputs.comment }}"
         PR_NUMBER=${{ github.event.pull_request.number }}
-        
+
         # Delete previous vet comment if exists
-        EXISTING=$(gh api repos/${{ github.repository }}/issues/${PR_NUMBER}/comments \
+        EXISTING=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
           --jq '.[] | select(.body | contains("vet score card")) | .id' | head -1)
-        
+
         if [[ -n "$EXISTING" ]]; then
-          gh api -X DELETE repos/${{ github.repository }}/issues/comments/${EXISTING}
+          gh api -X DELETE "repos/${{ github.repository }}/issues/comments/${EXISTING}"
         fi
-        
-        gh pr comment ${PR_NUMBER} --body "$COMMENT"
+
+        gh pr comment "${PR_NUMBER}" --body-file /tmp/vet-comment.md
 
     - name: Fail if below threshold
       if: steps.vet.outputs.passed == 'false'
