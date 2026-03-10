@@ -40,7 +40,7 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        npx @safetnsr/vet@${{ inputs.version }} --json > /tmp/vet-result.json 2>&1 || true
+        npx @safetnsr/vet@${{ inputs.version }} --json > /tmp/vet-result.json 2>/dev/null || true
 
         SCORE=$(jq -r '.score // 0' /tmp/vet-result.json)
         GRADE=$(jq -r '.grade // "F"' /tmp/vet-result.json)
