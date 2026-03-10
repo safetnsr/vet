@@ -185,6 +185,7 @@ function isInCodeContext(lines: string[], lineIndex: number): boolean {
 function isWorkflowFile(relPath: string): boolean {
   const normalized = relPath.replace(/\\/g, '/');
   return normalized.includes('.github/workflows/') ||
+    normalized.includes('.github/actions/') ||
     normalized.includes('.circleci/') ||
     normalized.includes('.gitlab-ci') ||
     /Makefile|Dockerfile|Jenkinsfile/i.test(normalized);
