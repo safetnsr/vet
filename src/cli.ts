@@ -360,6 +360,13 @@ async function withTimeout(name: string, fn: () => CheckResult | Promise<CheckRe
 /** Get files changed vs main/master branch or --since ref */
 function getChangedFiles(cwd: string, sinceRef?: string): Set<string> {
   const base = sinceRef || (() => {
+    // In GitHub Actions PR context, use GITHUB_BASE_REF
+    const ghBase = process.env.GITHUB_BASE_REF;
+    if (ghBase) {
+      const ref = gitExec(['merge-base', 'HEAD', `origin/${ghBase}`], cwd);
+      if (ref) return ref;
+    }
+    // Fallback: try merge-base with main/master
     const main = gitExec(['merge-base', 'HEAD', 'origin/main'], cwd);
     if (main) return main;
     const master = gitExec(['merge-base', 'HEAD', 'origin/master'], cwd);

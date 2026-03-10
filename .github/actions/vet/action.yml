@@ -41,11 +41,16 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: |
         # Use local build if available (dogfooding), otherwise npx
+        echo "::debug::GITHUB_BASE_REF=$GITHUB_BASE_REF"
         if [[ -f "./dist/cli.js" ]]; then
-          node ./dist/cli.js --diff-only --json > /tmp/vet-result.json 2>/dev/null || true
+          node ./dist/cli.js --diff-only --json > /tmp/vet-result.json 2>/tmp/vet-stderr.log || true
         else
-          npx @safetnsr/vet@${{ inputs.version }} --diff-only --json > /tmp/vet-result.json 2>/dev/null || true
+          npx @safetnsr/vet@${{ inputs.version }} --diff-only --json > /tmp/vet-result.json 2>/tmp/vet-stderr.log || true
         fi
+        if [[ -s /tmp/vet-stderr.log ]]; then
+          echo "::debug::vet stderr: $(cat /tmp/vet-stderr.log)"
+        fi
+        echo "::debug::vet totalIssues: $(jq -r '.totalIssues // "null"' /tmp/vet-result.json 2>/dev/null)"
 
         SCORE=$(jq -r '.score // 0' /tmp/vet-result.json)
         GRADE=$(jq -r '.grade // "F"' /tmp/vet-result.json)
