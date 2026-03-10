@@ -49,10 +49,16 @@ runs:
         echo "score=$SCORE" >> "$GITHUB_OUTPUT"
         echo "grade=$GRADE" >> "$GITHUB_OUTPUT"
 
-        # Check threshold
-        declare -A GRADE_ORDER=([A]=5 [B]=4 [C]=3 [D]=2 [F]=1)
+        # Check threshold (portable — no associative arrays)
         THRESHOLD="${{ inputs.threshold }}"
-        if [[ ${GRADE_ORDER[$GRADE]:-0} -ge ${GRADE_ORDER[$THRESHOLD]:-3} ]]; then
+        grade_to_num() {
+          case "$1" in
+            A) echo 5 ;; B) echo 4 ;; C) echo 3 ;; D) echo 2 ;; *) echo 1 ;;
+          esac
+        }
+        GRADE_NUM=$(grade_to_num "$GRADE")
+        THRESH_NUM=$(grade_to_num "$THRESHOLD")
+        if [[ "$GRADE_NUM" -ge "$THRESH_NUM" ]]; then
           echo "passed=true" >> "$GITHUB_OUTPUT"
         else
           echo "passed=false" >> "$GITHUB_OUTPUT"
@@ -89,7 +95,7 @@ runs:
           echo "**Score:** ${SCORE}/100 · **Grade:** ${GRADE} · **Threshold:** ${THRESHOLD}"
           echo "**Issues:** ${TOTAL_ISSUES} · **Fixable:** ${FIXABLE}"
           echo ""
-          if [[ ${GRADE_ORDER[$GRADE]:-0} -ge ${GRADE_ORDER[$THRESHOLD]:-3} ]]; then
+          if [[ "$GRADE_NUM" -ge "$THRESH_NUM" ]]; then
             echo "✅ **Passed**"
           else
             echo "❌ **Failed** — grade ${GRADE} is below threshold ${THRESHOLD}"
