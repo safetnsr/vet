@@ -1,0 +1,147 @@
+name: 'vet — AI Code Health Check'
+description: 'Run @safetnsr/vet on your PR and post a score card as a comment'
+author: 'safetnsr'
+
+branding:
+  icon: 'shield'
+  color: 'purple'
+
+inputs:
+  threshold:
+    description: 'Minimum grade to pass (A, B, C, D, F). Default: C'
+    required: false
+    default: 'C'
+  working-directory:
+    description: 'Directory to run vet in. Default: .'
+    required: false
+    default: '.'
+  version:
+    description: 'Version of @safetnsr/vet to use. Default: latest'
+    required: false
+    default: 'latest'
+  comment:
+    description: 'Post results as PR comment (true/false). Default: true'
+    required: false
+    default: 'true'
+
+outputs:
+  score:
+    description: 'Numeric score (0-100)'
+  grade:
+    description: 'Letter grade (A-F)'
+  passed:
+    description: 'Whether the threshold was met (true/false)'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run vet
+      id: vet
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        # Use local build if available (dogfooding), otherwise npx
+        if [[ -f "./dist/cli.js" ]]; then
+          node ./dist/cli.js --json > /tmp/vet-result.json 2>/dev/null || true
+        else
+          npx @safetnsr/vet@${{ inputs.version }} --json > /tmp/vet-result.json 2>/dev/null || true
+        fi
+
+        SCORE=$(jq -r '.score // 0' /tmp/vet-result.json)
+        GRADE=$(jq -r '.grade // "F"' /tmp/vet-result.json)
+        FIXABLE=$(jq -r '.fixableIssues // 0' /tmp/vet-result.json)
+
+        echo "score=$SCORE" >> "$GITHUB_OUTPUT"
+        echo "grade=$GRADE" >> "$GITHUB_OUTPUT"
+
+        # Check threshold (portable — no associative arrays)
+        THRESHOLD="${{ inputs.threshold }}"
+        grade_to_num() {
+          case "$1" in
+            A) echo 5 ;; B) echo 4 ;; C) echo 3 ;; D) echo 2 ;; *) echo 1 ;;
+          esac
+        }
+        GRADE_NUM=$(grade_to_num "$GRADE")
+        THRESH_NUM=$(grade_to_num "$THRESHOLD")
+        if [[ "$GRADE_NUM" -ge "$THRESH_NUM" ]]; then
+          echo "passed=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "passed=false" >> "$GITHUB_OUTPUT"
+        fi
+
+        # Build category table rows
+        # Structure: .categories[].checks[].issues[]
+        CATEGORIES=$(jq -r '
+          .categories // [] | map(
+            (.checks // [] | map(.issues // [] | length) | add // 0) as $issues |
+            "| \(.name) | \(.score) | \(.weight) | \($issues) |"
+          ) | join("\n")
+        ' /tmp/vet-result.json)
+
+        # Top 5 issues across all categories
+        TOP_ISSUES=$(jq -r '
+          [.categories // [] | .[].checks[]? | .issues[]? |
+           select(.severity == "error" or .severity == "warning")] |
+          sort_by(if .severity == "error" then 0 else 1 end) |
+          .[0:5] |
+          map("- **\(.severity):** \(.message) (`\(.file // "—"):\(.line // "")`)")  |
+          join("\n")
+        ' /tmp/vet-result.json)
+
+        # Total issue count
+        TOTAL_ISSUES=$(jq -r '
+          [.categories // [] | .[].checks[]? | .issues[]? ] | length
+        ' /tmp/vet-result.json)
+
+        # Write comment to file to avoid escaping issues with GITHUB_OUTPUT heredoc
+        {
+          echo "## 🩺 vet score card"
+          echo ""
+          echo "**Score:** ${SCORE}/100 · **Grade:** ${GRADE} · **Threshold:** ${THRESHOLD}"
+          echo "**Issues:** ${TOTAL_ISSUES} · **Fixable:** ${FIXABLE}"
+          echo ""
+          if [[ "$GRADE_NUM" -ge "$THRESH_NUM" ]]; then
+            echo "✅ **Passed**"
+          else
+            echo "❌ **Failed** — grade ${GRADE} is below threshold ${THRESHOLD}"
+          fi
+          echo ""
+          echo "| Category | Score | Weight | Issues |"
+          echo "|----------|-------|--------|--------|"
+          echo "${CATEGORIES}"
+          echo ""
+          if [[ -n "${TOP_ISSUES}" && "${TOP_ISSUES}" != "null" && "${TOP_ISSUES}" != "" ]]; then
+            echo "<details><summary>Top issues</summary>"
+            echo ""
+            echo "${TOP_ISSUES}"
+            echo ""
+            echo "</details>"
+          fi
+          echo ""
+          echo "<sub>Posted by <a href=\"https://www.npmjs.com/package/@safetnsr/vet\">@safetnsr/vet</a></sub>"
+        } > /tmp/vet-comment.md
+
+    - name: Comment on PR
+      if: inputs.comment == 'true' && github.event_name == 'pull_request'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        PR_NUMBER=${{ github.event.pull_request.number }}
+
+        # Delete previous vet comment if exists
+        EXISTING=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+          --jq '.[] | select(.body | contains("vet score card")) | .id' | head -1)
+
+        if [[ -n "$EXISTING" ]]; then
+          gh api -X DELETE "repos/${{ github.repository }}/issues/comments/${EXISTING}"
+        fi
+
+        gh pr comment "${PR_NUMBER}" --body-file /tmp/vet-comment.md
+
+    - name: Fail if below threshold
+      if: steps.vet.outputs.passed == 'false'
+      shell: bash
+      run: |
+        echo "::error::vet grade ${{ steps.vet.outputs.grade }} is below threshold ${{ inputs.threshold }}"
+        exit 1
