@@ -127,6 +127,8 @@ catch problems as the agent creates them, not after it's done.
 
 ## CI/CD
 
+### Quick (one-liner)
+
 ```yaml
 # .github/workflows/vet.yml
 name: vet
@@ -141,7 +143,43 @@ jobs:
       - run: npx @safetnsr/vet --ci
 ```
 
-GitHub Action: [`safetnsr/vet-action`](https://github.com/safetnsr/vet-action) (coming soon)
+### GitHub Action (with PR comments)
+
+Posts a score card directly on your PR with pass/fail status:
+
+```yaml
+name: vet
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  vet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: safetnsr/vet/.github/actions/vet@main
+        with:
+          threshold: C        # minimum grade to pass (A/B/C/D/F)
+          comment: true        # post score card as PR comment
+```
+
+**Inputs:**
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `threshold` | `C` | Minimum grade to pass |
+| `working-directory` | `.` | Directory to run vet in |
+| `version` | `latest` | @safetnsr/vet version |
+| `comment` | `true` | Post results as PR comment |
+
+**Outputs:** `score`, `grade`, `passed`
 
 ## config
 
