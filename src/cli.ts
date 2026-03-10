@@ -31,6 +31,7 @@ import { checkLoop, runLoopCommand } from './checks/loop.js';
 import { checkBloat, runBloatCommand } from './checks/bloat.js';
 import { checkGuard, runGuardCommand } from './checks/guard.js';
 import { checkExplain, runExplainCommand } from './checks/explain.js';
+import { checkContext, runContextCommand } from './checks/context.js';
 import { checkCompleteness } from './checks/completeness.js';
 import { score } from './scorer.js';
 import { toGrade } from './categories.js';
@@ -87,6 +88,7 @@ if (flags.has('--help') || flags.has('-h')) {
     npx @safetnsr/vet bloat              detect agent-generated code bloat
     npx @safetnsr/vet guard [dir]        scan for destructive operation bomb sites
     npx @safetnsr/vet explain [--since REF] [--verbose] [--json]  risk-tier agent changes
+    npx @safetnsr/vet context [dir]    audit agent context files for token cost + stale sections
 
   ${c.dim}categories:${c.reset}
     security   (30%)  scan, secrets, config, model usage
@@ -123,7 +125,7 @@ if (flags.has('--version') || flags.has('-v')) {
   process.exit(0);
 }
 
-const COMMANDS = ['init', 'receipt', 'map', 'permissions', 'compact', 'subsidy', 'loop', 'bloat', 'guard', 'explain'];
+const COMMANDS = ['init', 'receipt', 'map', 'permissions', 'compact', 'subsidy', 'loop', 'bloat', 'guard', 'explain', 'context'];
 const command = COMMANDS.includes(positional[0]) ? positional[0] : undefined;
 const cwd = resolve(positional.find(p => !COMMANDS.includes(p)) || '.');
 const isCI = flags.has('--ci');
@@ -262,6 +264,17 @@ if (command === 'guard') {
   process.exit(0);
 }
 
+if (command === 'context') {
+  try {
+    const format = isJSON ? 'json' : 'ascii';
+    await runContextCommand(format, cwd);
+  } catch (e) {
+    console.error(`${c.red}context failed:${c.reset}`, e instanceof Error ? e.message : e);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 if (command === 'explain') {
   try {
     const format = isJSON ? 'json' : 'ascii';
@@ -359,6 +372,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     semanticResult,
     hotspotsResult,
     clonesResult,
+    contextResult,
   ] = await Promise.all([
     withTimeout('scan', () => checkScan(cwd)),
     withTimeout('secrets', () => checkSecrets(cwd)),
@@ -387,6 +401,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     withTimeout('semantic', () => checkSemantic(cwd), 60_000),
     withTimeout('hotspots', () => checkHotspots(cwd), 30_000),
     withTimeout('clones', () => checkClones(cwd), 60_000),
+    withTimeout('context', () => checkContext(cwd)),
   ]);
 
   // Git-dependent checks (diff + history) — parallel with each other
@@ -404,7 +419,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     debt: [readyResult, historyResult, debtResult, bloatResult, clonesResult],
     deps: [depsResult],
     architecture: [architectureResult],
-    aiready: [aireadyResult, deepResult, semanticResult],
+    aiready: [aireadyResult, deepResult, semanticResult, contextResult],
     history: [hotspotsResult],
   });
   } catch (e) {

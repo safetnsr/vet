@@ -1,6 +1,6 @@
 {
   "name": "@safetnsr/vet",
-  "version": "1.20.1",
+  "version": "1.21.0",
   "description": "vet your AI-generated code — one command, one score card, one letter grade",
   "type": "module",
   "bin": {
@@ -44,6 +44,7 @@
     "@safetnsr/model-graveyard": "^0.2.0"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.8.1"
+    "@huggingface/transformers": "^3.8.1",
+    "js-tiktoken": "^1.0.21"
   }
 }
