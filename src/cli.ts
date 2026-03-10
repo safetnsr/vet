@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { resolve } from 'node:path';
 import { readFileSync, watchFile, statSync } from 'node:fs';
-import { isGitRepo, readFile, c } from './util.js';
+import { isGitRepo, readFile, c, gitExec } from './util.js';
 import { checkReady } from './checks/ready.js';
 import { checkDiff } from './checks/diff.js';
 import { checkModels } from './checks/models.js';
@@ -38,7 +38,7 @@ import { score } from './scorer.js';
 import { toGrade } from './categories.js';
 import { reportPretty, reportJSON, reportBadge } from './reporter.js';
 import { clearCache } from './file-cache.js';
-import type { VetConfig, CheckResult } from './types.js';
+import type { VetConfig, CheckResult, VetResult } from './types.js';
 
 const args = process.argv.slice(2);
 const flags = new Set(args.filter(a => a.startsWith('-') && !a.startsWith('--since')));
@@ -106,6 +106,7 @@ if (flags.has('--help') || flags.has('-h')) {
     --hook        pre-commit hook mode (exit 1 if below grade C)
     --badge       print markdown badge string and exit
     --fix         auto-fix configs, models
+    --diff-only   only score files changed in current branch (great for CI)
     --since REF   diff against specific commit/range
     --watch       re-run on file changes
     --json        JSON output
@@ -135,6 +136,7 @@ const isHook = flags.has('--hook');
 const isFix = flags.has('--fix');
 const isWatch = flags.has('--watch');
 const isBadge = flags.has('--badge');
+const isDiffOnly = flags.has('--diff-only');
 const isJSON = flags.has('--json') || (!process.stdout.isTTY && !flags.has('--pretty') && !isBadge);
 const since = flagMap.get('since');
 const maxFiles = flagMap.has('max-files') ? (parseInt(flagMap.get('max-files')!, 10) || 0) : 0;
@@ -342,6 +344,63 @@ async function withTimeout(name: string, fn: () => CheckResult | Promise<CheckRe
   });
 }
 
+/** Get files changed vs main/master branch or --since ref */
+function getChangedFiles(cwd: string, sinceRef?: string): Set<string> {
+  const base = sinceRef || (() => {
+    const main = gitExec(['merge-base', 'HEAD', 'origin/main'], cwd);
+    if (main) return main;
+    const master = gitExec(['merge-base', 'HEAD', 'origin/master'], cwd);
+    if (master) return master;
+    return 'HEAD~1';
+  })();
+  const output = gitExec(['diff', '--name-only', base, 'HEAD'], cwd);
+  if (!output) return new Set();
+  return new Set(output.split('\n').filter(Boolean));
+}
+
+/** Filter VetResult to only include issues from changed files, then re-score */
+function filterDiffOnly(result: VetResult, changedFiles: Set<string>): VetResult {
+  if (changedFiles.size === 0) return result;
+
+  const filtered: VetResult = {
+    ...result,
+    categories: result.categories.map(cat => {
+      const filteredChecks = cat.checks.map(check => {
+        const filteredIssues = check.issues.filter(issue =>
+          !issue.file || changedFiles.has(issue.file)
+        );
+        const penalty = filteredIssues.reduce((sum, i) => {
+          if (i.severity === 'error') return sum + 25;
+          if (i.severity === 'warning') return sum + 10;
+          return sum + 2;
+        }, 0);
+        const newScore = Math.max(0, 100 - penalty);
+        return { ...check, score: newScore, issues: filteredIssues };
+      });
+
+      const allIssues = filteredChecks.flatMap(c => c.issues);
+      const checksWithIssues = filteredChecks.filter(c => c.issues.length > 0);
+      const avgScore = checksWithIssues.length > 0
+        ? Math.round(checksWithIssues.reduce((sum, c) => sum + c.score, 0) / checksWithIssues.length)
+        : 100;
+
+      return { ...cat, checks: filteredChecks, issues: allIssues, score: avgScore };
+    }),
+  };
+
+  const totalWeight = filtered.categories.reduce((sum, c) => sum + c.weight, 0);
+  filtered.score = Math.round(
+    filtered.categories.reduce((sum, c) => sum + c.score * c.weight, 0) / totalWeight
+  );
+  filtered.grade = toGrade(filtered.score);
+  filtered.totalIssues = filtered.categories.reduce((sum, c) => c.issues.length + sum, 0);
+  filtered.fixableIssues = filtered.categories.reduce(
+    (sum, c) => c.issues.filter(i => i.fixable).length + sum, 0
+  );
+
+  return filtered;
+}
+
 async function runChecks(): Promise<ReturnType<typeof score>> {
   const globalStart = Date.now();
   const GLOBAL_TIMEOUT = 120_000;
@@ -490,7 +549,12 @@ if (isWatch) {
 } else {
   // Normal run
   try {
-    const result = await runChecks();
+    let result = await runChecks();
+
+    if (isDiffOnly) {
+      const changedFiles = getChangedFiles(cwd, since);
+      result = filterDiffOnly(result, changedFiles);
+    }
 
     if (isJSON) {
       console.log(reportJSON(result));

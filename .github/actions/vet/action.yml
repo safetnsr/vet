@@ -42,9 +42,9 @@ runs:
       run: |
         # Use local build if available (dogfooding), otherwise npx
         if [[ -f "./dist/cli.js" ]]; then
-          node ./dist/cli.js --json > /tmp/vet-result.json 2>/dev/null || true
+          node ./dist/cli.js --diff-only --json > /tmp/vet-result.json 2>/dev/null || true
         else
-          npx @safetnsr/vet@${{ inputs.version }} --json > /tmp/vet-result.json 2>/dev/null || true
+          npx @safetnsr/vet@${{ inputs.version }} --diff-only --json > /tmp/vet-result.json 2>/dev/null || true
         fi
 
         SCORE=$(jq -r '.score // 0' /tmp/vet-result.json)
