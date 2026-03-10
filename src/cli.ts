@@ -32,6 +32,7 @@ import { checkBloat, runBloatCommand } from './checks/bloat.js';
 import { checkGuard, runGuardCommand } from './checks/guard.js';
 import { checkExplain, runExplainCommand } from './checks/explain.js';
 import { checkContext, runContextCommand } from './checks/context.js';
+import { checkSplit, runSplitCommand } from './checks/split.js';
 import { checkCompleteness } from './checks/completeness.js';
 import { score } from './scorer.js';
 import { toGrade } from './categories.js';
@@ -89,6 +90,7 @@ if (flags.has('--help') || flags.has('-h')) {
     npx @safetnsr/vet guard [dir]        scan for destructive operation bomb sites
     npx @safetnsr/vet explain [--since REF] [--verbose] [--json]  risk-tier agent changes
     npx @safetnsr/vet context [dir]    audit agent context files for token cost + stale sections
+    npx @safetnsr/vet split [--since HEAD~1] [--apply] [--force] [--json]  split AI mega-commits into atomic commits
 
   ${c.dim}categories:${c.reset}
     security   (30%)  scan, secrets, config, model usage
@@ -125,7 +127,7 @@ if (flags.has('--version') || flags.has('-v')) {
   process.exit(0);
 }
 
-const COMMANDS = ['init', 'receipt', 'map', 'permissions', 'compact', 'subsidy', 'loop', 'bloat', 'guard', 'explain', 'context'];
+const COMMANDS = ['init', 'receipt', 'map', 'permissions', 'compact', 'subsidy', 'loop', 'bloat', 'guard', 'explain', 'context', 'split'];
 const command = COMMANDS.includes(positional[0]) ? positional[0] : undefined;
 const cwd = resolve(positional.find(p => !COMMANDS.includes(p)) || '.');
 const isCI = flags.has('--ci');
@@ -275,6 +277,17 @@ if (command === 'context') {
   process.exit(0);
 }
 
+if (command === 'split') {
+  try {
+    const format = isJSON ? 'json' : 'ascii';
+    await runSplitCommand(format, cwd, since, flags.has('--apply'), flags.has('--force'));
+  } catch (e) {
+    console.error(`${c.red}split failed:${c.reset}`, e instanceof Error ? e.message : e);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 if (command === 'explain') {
   try {
     const format = isJSON ? 'json' : 'ascii';
@@ -373,6 +386,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     hotspotsResult,
     clonesResult,
     contextResult,
+    splitResult,
   ] = await Promise.all([
     withTimeout('scan', () => checkScan(cwd)),
     withTimeout('secrets', () => checkSecrets(cwd)),
@@ -402,6 +416,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     withTimeout('hotspots', () => checkHotspots(cwd), 30_000),
     withTimeout('clones', () => checkClones(cwd), 60_000),
     withTimeout('context', () => checkContext(cwd)),
+    withTimeout('split', () => checkSplit(cwd)),
   ]);
 
   // Git-dependent checks (diff + history) — parallel with each other
@@ -416,7 +431,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
   return score(cwd, {
     security: [scanResult, secretsResult, configResult, modelsResult, owaspResult, permissionsResult, subsidyResult, guardResult],
     integrity: [diffResult, integrityResult, receiptResult, compactResult, memoryResult, verifyResult, testsResult, loopResult, completenessResult, explainResult],
-    debt: [readyResult, historyResult, debtResult, bloatResult, clonesResult],
+    debt: [readyResult, historyResult, debtResult, bloatResult, clonesResult, splitResult],
     deps: [depsResult],
     architecture: [architectureResult],
     aiready: [aireadyResult, deepResult, semanticResult, contextResult],
