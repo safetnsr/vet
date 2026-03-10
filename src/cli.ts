@@ -30,9 +30,11 @@ import { checkSubsidy, runSubsidyCommand } from './checks/subsidy.js';
 import { checkLoop, runLoopCommand } from './checks/loop.js';
 import { checkBloat, runBloatCommand } from './checks/bloat.js';
 import { checkGuard, runGuardCommand } from './checks/guard.js';
+import { checkSandbox, runSandboxCommand } from './checks/sandbox.js';
 import { checkExplain, runExplainCommand } from './checks/explain.js';
 import { checkContext, runContextCommand } from './checks/context.js';
 import { checkSplit, runSplitCommand } from './checks/split.js';
+import { checkSourceSecurity } from './checks/source-security.js';
 import { checkCompleteness } from './checks/completeness.js';
 import { score } from './scorer.js';
 import { toGrade } from './categories.js';
@@ -91,6 +93,7 @@ if (flags.has('--help') || flags.has('-h')) {
     npx @safetnsr/vet explain [--since REF] [--verbose] [--json]  risk-tier agent changes
     npx @safetnsr/vet context [dir]    audit agent context files for token cost + stale sections
     npx @safetnsr/vet split [--since HEAD~1] [--apply] [--force] [--json]  split AI mega-commits into atomic commits
+    npx @safetnsr/vet sandbox [dir]     score agent runtime blast radius
 
   ${c.dim}categories:${c.reset}
     security   (30%)  scan, secrets, config, model usage
@@ -128,7 +131,7 @@ if (flags.has('--version') || flags.has('-v')) {
   process.exit(0);
 }
 
-const COMMANDS = ['init', 'receipt', 'map', 'permissions', 'compact', 'subsidy', 'loop', 'bloat', 'guard', 'explain', 'context', 'split'];
+const COMMANDS = ['init', 'receipt', 'map', 'permissions', 'compact', 'subsidy', 'loop', 'bloat', 'guard', 'explain', 'context', 'split', 'sandbox'];
 const command = COMMANDS.includes(positional[0]) ? positional[0] : undefined;
 const cwd = resolve(positional.find(p => !COMMANDS.includes(p)) || '.');
 const isCI = flags.has('--ci');
@@ -303,6 +306,16 @@ if (command === 'explain') {
   process.exit(0);
 }
 
+if (command === 'sandbox') {
+  try {
+    await runSandboxCommand(cwd, flags);
+  } catch (e) {
+    console.error(`${c.red}sandbox failed:${c.reset}`, e instanceof Error ? e.message : e);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 if (!isGitRepo(cwd)) {
   console.error(`${c.red}not a git repository${c.reset}. vet operates on git repos.`);
   process.exit(1);
@@ -418,6 +431,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
   // Run ALL independent checks in parallel
   const [
     scanResult,
+    sourceSecurityResult,
     secretsResult,
     configResult,
     modelsResult,
@@ -446,8 +460,10 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     clonesResult,
     contextResult,
     splitResult,
+    sandboxResult,
   ] = await Promise.all([
     withTimeout('scan', () => checkScan(cwd)),
+    withTimeout('source-security', () => checkSourceSecurity(cwd)),
     withTimeout('secrets', () => checkSecrets(cwd)),
     withTimeout('config', () => checkConfig(cwd, ignore)),
     withTimeout('models', () => checkModels(cwd, ignore)),
@@ -476,6 +492,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     withTimeout('clones', () => checkClones(cwd), 60_000),
     withTimeout('context', () => checkContext(cwd)),
     withTimeout('split', () => checkSplit(cwd)),
+    withTimeout('sandbox', () => checkSandbox(cwd)),
   ]);
 
   // Git-dependent checks (diff + history) — parallel with each other
@@ -488,7 +505,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
   clearCache();
 
   return score(cwd, {
-    security: [scanResult, secretsResult, configResult, modelsResult, owaspResult, permissionsResult, subsidyResult, guardResult],
+    security: [scanResult, sourceSecurityResult, secretsResult, configResult, modelsResult, owaspResult, permissionsResult, subsidyResult, guardResult, sandboxResult],
     integrity: [diffResult, integrityResult, receiptResult, compactResult, memoryResult, verifyResult, testsResult, loopResult, completenessResult, explainResult],
     debt: [readyResult, historyResult, debtResult, bloatResult, clonesResult, splitResult],
     deps: [depsResult],
