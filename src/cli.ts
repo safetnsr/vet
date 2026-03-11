@@ -35,6 +35,7 @@ import { checkExplain, runExplainCommand } from './checks/explain.js';
 import { checkContext, runContextCommand } from './checks/context.js';
 import { checkSplit, runSplitCommand } from './checks/split.js';
 import { checkTriage, runTriageCommand } from './checks/triage.js';
+import { checkFleet, runFleetCommand } from './checks/fleet.js';
 import { checkSourceSecurity } from './checks/source-security.js';
 import { checkCompleteness } from './checks/completeness.js';
 import { score } from './scorer.js';
@@ -96,6 +97,7 @@ if (flags.has('--help') || flags.has('-h')) {
     npx @safetnsr/vet split [--since HEAD~1] [--apply] [--force] [--json]  split AI mega-commits into atomic commits
     npx @safetnsr/vet sandbox [dir]     score agent runtime blast radius
     npx @safetnsr/vet triage [--since HEAD~1] [--json]  rank diff files by review urgency
+    npx @safetnsr/vet fleet [--sessions dir] [--since 8h] [--json]  multi-agent session audit
 
   ${c.dim}categories:${c.reset}
     security   (30%)  scan, secrets, config, model usage
@@ -133,7 +135,7 @@ if (flags.has('--version') || flags.has('-v')) {
   process.exit(0);
 }
 
-const COMMANDS = ['init', 'receipt', 'map', 'permissions', 'compact', 'subsidy', 'loop', 'bloat', 'guard', 'explain', 'context', 'split', 'sandbox', 'triage'];
+const COMMANDS = ['init', 'receipt', 'map', 'permissions', 'compact', 'subsidy', 'loop', 'bloat', 'guard', 'explain', 'context', 'split', 'sandbox', 'triage', 'fleet'];
 const command = COMMANDS.includes(positional[0]) ? positional[0] : undefined;
 const cwd = resolve(positional.find(p => !COMMANDS.includes(p)) || '.');
 const isCI = flags.has('--ci');
@@ -324,6 +326,19 @@ if (command === 'triage') {
     await runTriageCommand(format, cwd, since);
   } catch (e) {
     console.error(`${c.red}triage failed:${c.reset}`, e instanceof Error ? e.message : e);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+if (command === 'fleet') {
+  try {
+    const format = isJSON ? 'json' : 'ascii';
+    const sessionsDir = args.find(a => a.startsWith('--sessions='))?.split('=')[1]
+      || (args.includes('--sessions') ? args[args.indexOf('--sessions') + 1] : undefined);
+    await runFleetCommand(format, sessionsDir, since);
+  } catch (e) {
+    console.error(`${c.red}fleet failed:${c.reset}`, e instanceof Error ? e.message : e);
     process.exit(1);
   }
   process.exit(0);
