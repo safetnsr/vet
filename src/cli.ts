@@ -36,6 +36,7 @@ import { checkContext, runContextCommand } from './checks/context.js';
 import { checkSplit, runSplitCommand } from './checks/split.js';
 import { checkTriage, runTriageCommand } from './checks/triage.js';
 import { checkFleet, runFleetCommand } from './checks/fleet.js';
+import { checkReview, runReviewCommand } from './checks/review.js';
 import { checkSourceSecurity } from './checks/source-security.js';
 import { checkCompleteness } from './checks/completeness.js';
 import { score } from './scorer.js';
@@ -98,6 +99,7 @@ if (flags.has('--help') || flags.has('-h')) {
     npx @safetnsr/vet sandbox [dir]     score agent runtime blast radius
     npx @safetnsr/vet triage [--since HEAD~1] [--json]  rank diff files by review urgency
     npx @safetnsr/vet fleet [--sessions dir] [--since 8h] [--json]  multi-agent session audit
+    npx @safetnsr/vet review [dir]        score REVIEW.md behavioral completeness
 
   ${c.dim}categories:${c.reset}
     security   (30%)  scan, secrets, config, model usage
@@ -135,7 +137,7 @@ if (flags.has('--version') || flags.has('-v')) {
   process.exit(0);
 }
 
-const COMMANDS = ['init', 'receipt', 'map', 'permissions', 'compact', 'subsidy', 'loop', 'bloat', 'guard', 'explain', 'context', 'split', 'sandbox', 'triage', 'fleet'];
+const COMMANDS = ['init', 'receipt', 'map', 'permissions', 'compact', 'subsidy', 'loop', 'bloat', 'guard', 'explain', 'context', 'split', 'sandbox', 'triage', 'fleet', 'review'];
 const command = COMMANDS.includes(positional[0]) ? positional[0] : undefined;
 const cwd = resolve(positional.find(p => !COMMANDS.includes(p)) || '.');
 const isCI = flags.has('--ci');
@@ -344,6 +346,17 @@ if (command === 'fleet') {
   process.exit(0);
 }
 
+if (command === 'review') {
+  try {
+    const format = isJSON ? 'json' : 'ascii';
+    await runReviewCommand(cwd, format);
+  } catch (e) {
+    console.error(`${c.red}review failed:${c.reset}`, e instanceof Error ? e.message : e);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 if (!isGitRepo(cwd)) {
   console.error(`${c.red}not a git repository${c.reset}. vet operates on git repos.`);
   process.exit(1);
@@ -496,6 +509,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     contextResult,
     splitResult,
     sandboxResult,
+    reviewResult,
   ] = await Promise.all([
     withTimeout('scan', () => checkScan(cwd)),
     withTimeout('source-security', () => checkSourceSecurity(cwd)),
@@ -528,6 +542,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     withTimeout('context', () => checkContext(cwd)),
     withTimeout('split', () => checkSplit(cwd)),
     withTimeout('sandbox', () => checkSandbox(cwd)),
+    withTimeout('review', () => checkReview(cwd)),
   ]);
 
   // Git-dependent checks (diff + history) — parallel with each other
@@ -545,7 +560,7 @@ async function runChecks(): Promise<ReturnType<typeof score>> {
     debt: [readyResult, historyResult, debtResult, bloatResult, clonesResult, splitResult],
     deps: [depsResult],
     architecture: [architectureResult],
-    aiready: [aireadyResult, deepResult, semanticResult, contextResult],
+    aiready: [aireadyResult, deepResult, semanticResult, contextResult, reviewResult],
     history: [hotspotsResult],
   });
   } catch (e) {
